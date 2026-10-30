@@ -1,0 +1,34 @@
+{
+  "universe": [
+    "RELIANCE", "TCS", "HDFCBANK", "ICICIBANK", "INFY", "BHARTIARTL", "ITC", "SBIN",
+    "LT", "HINDUNILVR", "KOTAKBANK", "AXISBANK", "BAJFINANCE", "MARUTI", "SUNPHARMA",
+    "HCLTECH", "M&M", "TITAN", "ASIANPAINT", "ULTRACEMCO", "NTPC", "POWERGRID",
+    "TATASTEEL", "NESTLEIND", "WIPRO", "ONGC", "ADANIPORTS", "COALINDIA", "JSWSTEEL",
+    "BAJAJFINSV", "TECHM", "HINDALCO", "GRASIM", "CIPLA", "DRREDDY", "BRITANNIA",
+    "EICHERMOT", "HEROMOTOCO", "BAJAJ-AUTO", "APOLLOHOSP", "TATACONSUM", "TRENT", "BEL"
+  ],
+  "screen": {
+    "onMissing": "pass",
+    "rules": [
+      { "metric": "marketCap", "op": ">=", "value": 100000000000 },
+      { "metric": "roe", "op": ">=", "value": 0.10 },
+      { "metric": "debtToEquity", "op": "<=", "value": 1.5 },
+      { "metric": "profitMargin", "op": ">", "value": 0 }
+    ]
+  },
+  "scoring": {
+    "roe":             { "weight": 20, "bad": 0.05, "good": 0.25 },
+    "revenueGrowth":   { "weight": 15, "bad": 0.0,  "good": 0.20 },
+    "earningsGrowth":  { "weight": 15, "bad": -0.05, "good": 0.25 },
+    "debtToEquity":    { "weight": 10, "bad": 2.0,  "good": 0.1 },
+    "profitMargin":    { "weight": 10, "bad": 0.03, "good": 0.20 },
+    "pe":              { "weight": 10, "bad": 60,   "good": 12 },
+    "operatingMargin": { "weight": 5,  "bad": 0.05, "good": 0.25 },
+    "pb":              { "weight": 5,  "bad": 10,   "good": 1.5 },
+    "currentRatio":    { "weight": 5,  "bad": 0.8,  "good": 2.0 },
+    "dividendYield":   { "weight": 5,  "bad": 0.0,  "good": 0.03 }
+  },
+  "sentiment": { "lookbackDays": 14, "maxArticles": 25, "halfLifeDays": 5 },
+  "combine": { "fundamentalWeight": 0.75, "sentimentWeight": 0.25 },
+  "watchlist": { "topN": 10, "minScore": 55, "minSentiment": -0.25 }
+}

@@ -1,0 +1,34 @@
+{
+  "strategy": {
+    "fastEma": 20,
+    "slowEma": 50,
+    "trendEma": 200,
+    "rsiPeriod": 14,
+    "rsiMin": 50,
+    "rsiMax": 70,
+    "atrPeriod": 14,
+    "stopAtr": 2,
+    "trailAtr": 3
+  },
+  "risk": {
+    "riskPerTrade": 0.01,
+    "maxPositionPct": 0.2,
+    "maxOpenPositions": 5,
+    "maxDailyLossPct": 0.02,
+    "maxOrderValue": 200000
+  },
+  "engine": {
+    "evaluateAt": "15:10",
+    "pollSeconds": 30,
+    "watchlistMaxAgeDays": 7,
+    "product": "CNC",
+    "exchange": "NSE",
+    "stopLimitBufferPct": 0.005,
+    "holidays": []
+  },
+  "backtest": {
+    "initialCapital": 500000,
+    "costPct": 0.0012,
+    "slippagePct": 0.0005
+  }
+}
