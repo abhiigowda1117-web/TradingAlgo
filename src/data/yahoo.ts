@@ -110,7 +110,8 @@ function installedYahooVersion(): string {
   }
 }
 
-function createYahooFinance() {
+/** A YahooFinance client, one request at a time. Shared by the study and research modules. */
+export function createYahooFinance() {
   const Ctor = resolveYahooCtor(YahooFinance);
   return new Ctor({ suppressNotices: ['yahooSurvey'], queue: { concurrency: 1 } });
 }

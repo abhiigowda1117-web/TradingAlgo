@@ -10,6 +10,8 @@
   "scripts": {
     "study": "tsx src/cli/study.ts",
     "report": "tsx src/cli/report.ts",
+    "research": "tsx src/cli/research.ts",
+    "dashboard": "tsx src/cli/dashboard.ts",
     "backtest": "tsx src/cli/backtest.ts",
     "portfolio": "tsx src/cli/portfolio.ts",
     "trade": "tsx src/cli/trade.ts",
@@ -18,6 +20,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "chart.js": "4.4.1",
     "dotenv": "16.4.5",
     "fast-xml-parser": "5.11.2",
     "yahoo-finance2": "4.0.4"

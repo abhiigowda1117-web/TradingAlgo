@@ -55,6 +55,35 @@ Outputs: `data/watchlist.json` (read by the trading engine) and `reports/<date>/
 
 Banks and NBFCs often have no debt/equity or current ratio on Yahoo. With `"onMissing": "pass"` they are not penalised for missing data; set it to `"fail"` to be strict.
 
+## Company research (any NSE stock)
+
+```bash
+npm run research -- HIKAL                         # report -> reports/research/HIKAL-<date>.md and .json
+npm run research -- HIKAL --peers DIVISLAB,LAURUSLABS
+npm run dashboard                                 # then open http://localhost:3000, type a symbol, click Analyze
+```
+
+The report covers:
+1. **Overview:** business description, sector, industry and key people.
+2. **Fundamentals:** growth, EPS, ROE, ROCE, debt, margins, cash flow and valuation, with annual and quarterly trends.
+3. **Technicals:** EMA 20/50/200, RSI, MACD, volume, support/resistance, trend and returns.
+4. **News and NSE announcements.**
+5. **Peer comparison.**
+6. **Rule-based summary:** business quality, financial strength, growth, risks, valuation, technical outlook, and bullish and bearish scenarios.
+
+The dashboard shows the same content with charts.
+
+**Data rules:**
+- **Labels:** every figure is labelled **Reported** (from the source as-is), **Calculated** (formula shown), **Estimate** (an analyst forecast) or **Not Available**. Missing data is never filled in.
+- **Sources:**
+  - Yahoo Finance for the profile, statements and prices. These are third-party data, delayed rather than real-time, and should be checked against filings.
+  - Google News for headlines.
+  - NSE's website for announcements. NSE has no official API: when it blocks the request, the report says Not Available and links to the official NSE/BSE pages.
+- **Products and segments:** there's no free structured source, so the report points to the annual report instead.
+- **Peers:** taken from `config/peers.json` (edit it, or pass `--peers`). Stocks with no configured peers show none.
+- **Interpretation:** fixed rules, with no price targets or predictions.
+- **Separation:** the research and dashboard code cannot import any trading or broker code (a test enforces this). The dashboard listens on this computer only.
+
 ## 2. Trading algo
 
 ### Strategy (daily candles, long only, delivery/CNC)

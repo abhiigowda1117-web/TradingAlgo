@@ -1,0 +1,15 @@
+{
+  "_readme": "Peer groups for company research. A symbol's peers are: --peers on the command line / dashboard, else its entry in 'custom', else the other members of any group containing it. Edit freely.",
+  "groups": {
+    "IT services": ["TCS", "INFY", "WIPRO", "HCLTECH", "TECHM", "LTIM"],
+    "Private banks": ["HDFCBANK", "ICICIBANK", "KOTAKBANK", "AXISBANK", "INDUSINDBK"],
+    "Two-wheelers": ["BAJAJ-AUTO", "HEROMOTOCO", "EICHERMOT", "TVSMOTOR"],
+    "Steel": ["TATASTEEL", "JSWSTEEL", "SAIL", "JINDALSTEL"],
+    "Cement": ["ULTRACEMCO", "AMBUJACEM", "ACC", "SHREECEM"],
+    "Power utilities": ["NTPC", "POWERGRID", "TATAPOWER", "NHPC"],
+    "Oil and gas": ["RELIANCE", "ONGC", "BPCL", "IOC"],
+    "FMCG": ["HINDUNILVR", "ITC", "NESTLEIND", "BRITANNIA", "DABUR"],
+    "Pharma": ["SUNPHARMA", "DRREDDY", "CIPLA", "DIVISLAB", "LUPIN"]
+  },
+  "custom": {}
+}
