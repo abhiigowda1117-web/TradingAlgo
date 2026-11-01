@@ -78,12 +78,23 @@ export function mapQuoteSummary(symbol: string, qs: Record<string, Loose>): Comp
   };
 }
 
+type YahooFinanceCtor = typeof YahooFinance;
+
+/**
+ * Finds the YahooFinance class whichever build Node loaded. The ESM build's default export is the
+ * class; the CommonJS build (loaded e.g. by tsx on Node 26) arrives as `{ default: class }`.
+ * yahoo-finance2 v2 exported a ready-made object instead, which means a stale install.
+ */
+export function resolveYahooCtor(mod: unknown): YahooFinanceCtor {
+  if (typeof mod === 'function') return mod as YahooFinanceCtor;
+  const inner = (mod as { default?: unknown } | null)?.default;
+  if (typeof inner === 'function') return inner as YahooFinanceCtor;
+  throw new Error('An old version of yahoo-finance2 is installed. In the project folder run "npm install"; "npm ls yahoo-finance2" must then show version 4.');
+}
+
 function createYahooFinance() {
-  // yahoo-finance2 v2 exported a ready-made object; v3+ exports a class. A stale install shows up here.
-  if (typeof (YahooFinance as unknown) !== 'function') {
-    throw new Error('An old version of yahoo-finance2 is installed. In the project folder run "npm install"; "npm ls yahoo-finance2" must then show version 4.');
-  }
-  return new YahooFinance({ suppressNotices: ['yahooSurvey'], queue: { concurrency: 1 } });
+  const Ctor = resolveYahooCtor(YahooFinance);
+  return new Ctor({ suppressNotices: ['yahooSurvey'], queue: { concurrency: 1 } });
 }
 
 export class YahooData implements MarketData, FundamentalsProvider {

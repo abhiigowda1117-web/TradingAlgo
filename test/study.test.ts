@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { StudyConfig } from '../src/config';
 import { parseGoogleNewsRss } from '../src/data/googleNews';
-import { isRateLimited, mapQuoteSummary, RateLimitError, withRateLimitRetry } from '../src/data/yahoo';
+import { isRateLimited, mapQuoteSummary, RateLimitError, resolveYahooCtor, withRateLimitRetry } from '../src/data/yahoo';
+import { createRequire } from 'node:module';
 import { companyReport, summaryReport } from '../src/study/report';
 import { fundamentalScore, scoreMetric } from '../src/study/scoring';
 import { screen } from '../src/study/screener';
@@ -177,5 +178,20 @@ describe('Yahoo rate limiting', () => {
     const other = withRateLimitRetry('t', async () => { calls++; throw new Error('Not Found'); }, [1, 2], async () => {});
     await expect(other).rejects.toThrow('Not Found');
     expect(calls).toBe(1);
+  });
+});
+
+describe('yahoo-finance2 loading', () => {
+  it('finds the class from both the ESM and the CommonJS build', () => {
+    const cjs = createRequire(import.meta.url)('yahoo-finance2'); // { default: class }, as Node 26 + tsx loads it
+    expect(typeof cjs).toBe('object');
+    const Ctor = resolveYahooCtor(cjs);
+    expect(typeof new Ctor({ suppressNotices: ['yahooSurvey'] }).quoteSummary).toBe('function');
+    class Fake {}
+    expect(resolveYahooCtor(Fake)).toBe(Fake);
+  });
+
+  it('explains a stale v2 install', () => {
+    expect(() => resolveYahooCtor({ quote() {}, chart() {} })).toThrow(/old version of yahoo-finance2/);
   });
 });
