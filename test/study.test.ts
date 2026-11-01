@@ -191,7 +191,12 @@ describe('yahoo-finance2 loading', () => {
     expect(resolveYahooCtor(Fake)).toBe(Fake);
   });
 
-  it('explains a stale v2 install', () => {
-    expect(() => resolveYahooCtor({ quote() {}, chart() {} })).toThrow(/old version of yahoo-finance2/);
+  it('unwraps nested default exports', () => {
+    class Fake {}
+    expect(resolveYahooCtor({ default: { default: Fake } })).toBe(Fake);
+  });
+
+  it('explains a stale v2 install, naming the installed version', () => {
+    expect(() => resolveYahooCtor({ default: { quote() {}, chart() {} } })).toThrow(/did not provide the YahooFinance class .*installed version 4\.0\.4/);
   });
 });

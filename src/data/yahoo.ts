@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve as resolvePath } from 'node:path';
 import YahooFinance from 'yahoo-finance2';
 import type { Candle, CompanyFundamentals } from '../types';
 import { log } from '../util/log';
@@ -86,10 +88,26 @@ type YahooFinanceCtor = typeof YahooFinance;
  * yahoo-finance2 v2 exported a ready-made object instead, which means a stale install.
  */
 export function resolveYahooCtor(mod: unknown): YahooFinanceCtor {
-  if (typeof mod === 'function') return mod as YahooFinanceCtor;
-  const inner = (mod as { default?: unknown } | null)?.default;
-  if (typeof inner === 'function') return inner as YahooFinanceCtor;
-  throw new Error('An old version of yahoo-finance2 is installed. In the project folder run "npm install"; "npm ls yahoo-finance2" must then show version 4.');
+  let m = mod;
+  for (let depth = 0; depth < 4 && m != null; depth++) {
+    if (typeof m === 'function') return m as YahooFinanceCtor;
+    m = (m as { default?: unknown }).default;
+  }
+  const found = typeof mod === 'object' && mod ? `an object with keys [${Object.keys(mod).slice(0, 6).join(', ')}]` : typeof mod;
+  throw new Error(
+    `yahoo-finance2 did not provide the YahooFinance class (got ${found}; installed version ${installedYahooVersion()}). ` +
+      'Version 4 is required. In the project folder run: rmdir /s /q node_modules  then  npm install  then  npm ls yahoo-finance2',
+  );
+}
+
+/** Reads the installed package version straight from node_modules, for error messages. */
+function installedYahooVersion(): string {
+  try {
+    const pkg = JSON.parse(readFileSync(resolvePath(import.meta.dirname, '../../node_modules/yahoo-finance2/package.json'), 'utf8')) as { version?: string };
+    return pkg.version ?? 'unknown';
+  } catch {
+    return 'not found';
+  }
 }
 
 function createYahooFinance() {
