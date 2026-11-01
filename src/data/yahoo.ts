@@ -78,9 +78,17 @@ export function mapQuoteSummary(symbol: string, qs: Record<string, Loose>): Comp
   };
 }
 
+function createYahooFinance() {
+  // yahoo-finance2 v2 exported a ready-made object; v3+ exports a class. A stale install shows up here.
+  if (typeof (YahooFinance as unknown) !== 'function') {
+    throw new Error('An old version of yahoo-finance2 is installed. In the project folder run "npm install"; "npm ls yahoo-finance2" must then show version 4.');
+  }
+  return new YahooFinance({ suppressNotices: ['yahooSurvey'], queue: { concurrency: 1 } });
+}
+
 export class YahooData implements MarketData, FundamentalsProvider {
   // One request at a time: Yahoo rate-limits bursts.
-  private yf = new YahooFinance({ suppressNotices: ['yahooSurvey'], queue: { concurrency: 1 } });
+  private yf = createYahooFinance();
 
   constructor(private exchange: 'NSE' | 'BSE' = 'NSE') {}
 
