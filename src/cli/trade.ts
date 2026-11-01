@@ -9,8 +9,11 @@ import { parseArgs } from './args';
 //   npm run trade                      # paper trading (TRADING_MODE=paper)
 //   npm run trade -- --live            # real orders; also requires TRADING_MODE=live in .env
 //   npm run trade -- --once            # run a single tick and exit (cron-friendly)
-//   npm run trade -- --status          # print positions and equity, then exit
-// Create a file named STOP in the project root to halt the engine.
+//   npm run trade -- --status          # print positions, protection, open orders and equity, then exit
+// Kill switch (file named STOP in the project root):
+//   touch STOP                 -> no new entries; existing positions stay protected and managed
+//   echo FLATTEN > STOP        -> cancel stops, sell every engine position at market, then exit
+//   rm STOP                    -> resume normal trading
 const { flags } = parseArgs();
 const env = loadEnv();
 const cfg = loadTradingConfig();
@@ -29,12 +32,22 @@ const market = marketData(env, cfg);
 const engine = new Engine({ broker: broker(env, cfg, market), market, cfg, paths });
 
 if (flags.has('status')) {
-  const { equity, cash, ltp } = await engine.equity();
-  console.log(`Mode ${env.tradingMode}. Equity ₹${equity.toFixed(0)}, cash ₹${cash.toFixed(0)}`);
-  for (const p of Object.values(engine.state.positions)) {
-    const px = ltp[p.symbol] ?? p.entryPrice;
-    console.log(`  ${p.symbol.padEnd(12)} ${p.qty} @ ₹${p.entryPrice.toFixed(2)}  now ₹${px.toFixed(2)}  P&L ₹${((px - p.entryPrice) * p.qty).toFixed(0)}  stop ₹${p.stop.toFixed(2)}`);
+  let ltp: Record<string, number> = {};
+  try {
+    const eq = await engine.equity();
+    ltp = eq.ltp;
+    console.log(`Mode ${env.tradingMode}. Equity ₹${eq.equity.toFixed(0)}, cash ₹${eq.cash.toFixed(0)}. Kill switch: ${engine.killSwitch()}`);
+  } catch (e) {
+    console.log(`Mode ${env.tradingMode}. Equity unavailable: ${(e as Error).message}. Kill switch: ${engine.killSwitch()}`);
   }
+  for (const p of Object.values(engine.state.positions)) {
+    const px = ltp[p.symbol];
+    const pnl = px === undefined ? 'n/a' : `₹${((px - p.entryPrice) * p.qty).toFixed(0)}`;
+    const prot = p.protection === 'confirmed' ? `stop ${p.protectedQty} @ ₹${p.protectedStop?.toFixed(2)}` : `UNPROTECTED (${p.protection})`;
+    console.log(`  ${p.symbol.padEnd(12)} ${p.qty} @ ₹${p.entryPrice.toFixed(2)}  now ${px === undefined ? 'n/a' : `₹${px.toFixed(2)}`}  P&L ${pnl}  ${prot}${p.exitReason ? `  EXITING: ${p.exitReason}` : ''}`);
+  }
+  const open = Object.values(engine.state.intents).filter((i) => !['complete', 'cancelled', 'rejected', 'not_found', 'expired'].includes(i.status));
+  for (const i of open) console.log(`  order ${i.id} ${i.kind} ${i.side} ${i.qty} ${i.symbol}: ${i.status}${i.brokerStatus ? ` (${i.brokerStatus})` : ''}`);
   process.exit(0);
 }
 

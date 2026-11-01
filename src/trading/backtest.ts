@@ -1,6 +1,6 @@
 import type { RiskConfig, StrategyConfig, TradingConfig } from '../config';
 import type { Candle } from '../types';
-import { positionSize } from './risk';
+import { positionSize, type CostModel } from './risk';
 import { computeIndicators, entrySignal, exitSignal } from './strategy';
 
 export interface BacktestTrade {
@@ -57,6 +57,7 @@ export function backtest(
   cfg: { strategy: StrategyConfig; risk: RiskConfig; backtest: TradingConfig['backtest'] },
 ): BacktestResult {
   const { costPct, slippagePct, initialCapital } = cfg.backtest;
+  const costs: CostModel = { costPct, slippagePct, stopBufferPct: 0 };
   const ind = computeIndicators(candles, cfg.strategy);
   let cash = initialCapital;
   let pos: Position | undefined;
@@ -106,7 +107,7 @@ export function backtest(
       if (e.enter) {
         const price = c.close * (1 + slippagePct);
         const equity = cash;
-        const { qty } = positionSize({ equity, cash: cash / (1 + costPct), price, stop: e.stop }, cfg.risk);
+        const { qty } = positionSize({ equity, cash, price: c.close, stop: e.stop }, cfg.risk, costs);
         if (qty > 0) {
           const entryCost = qty * price * costPct;
           cash -= qty * price + entryCost;

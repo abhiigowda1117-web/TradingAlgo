@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { StudyConfig } from '../src/config';
 import { parseGoogleNewsRss } from '../src/data/googleNews';
-import { mapQuoteSummary } from '../src/data/yahoo';
+import { isRateLimited, mapQuoteSummary, RateLimitError, resolveYahooCtor, withRateLimitRetry } from '../src/data/yahoo';
+import { createRequire } from 'node:module';
 import { companyReport, summaryReport } from '../src/study/report';
 import { fundamentalScore, scoreMetric } from '../src/study/scoring';
 import { screen } from '../src/study/screener';
@@ -149,5 +150,53 @@ describe('study pipeline', () => {
     expect(md).toContain('| Return on equity | 25.0% | 100 | 50 |');
     expect(md).toContain('## Technical snapshot');
     expect(summaryReport([s], w, now)).toContain('| 1 | [GOOD](./GOOD.md) |');
+  });
+});
+
+describe('Yahoo rate limiting', () => {
+  it('recognises 429 responses in their different shapes', () => {
+    expect(isRateLimited({ code: 429, message: 'x' })).toBe(true);
+    expect(isRateLimited(new Error(`Unexpected token 'T', "Too Many Requests" is not valid JSON`))).toBe(true);
+    expect(isRateLimited(new Error('Not Found'))).toBe(false);
+  });
+
+  it('waits and retries, then succeeds', async () => {
+    let calls = 0;
+    const waits: number[] = [];
+    const out = await withRateLimitRetry('t', async () => {
+      if (++calls < 3) throw Object.assign(new Error('Too Many Requests'), { code: 429 });
+      return 'ok';
+    }, [1, 2, 3], async (ms) => void waits.push(ms));
+    expect(out).toBe('ok');
+    expect(waits).toEqual([1, 2]);
+  });
+
+  it('gives up with RateLimitError after the last retry, and passes other errors straight through', async () => {
+    const limited = withRateLimitRetry('t', async () => { throw new Error('Too Many Requests'); }, [1], async () => {});
+    await expect(limited).rejects.toBeInstanceOf(RateLimitError);
+    let calls = 0;
+    const other = withRateLimitRetry('t', async () => { calls++; throw new Error('Not Found'); }, [1, 2], async () => {});
+    await expect(other).rejects.toThrow('Not Found');
+    expect(calls).toBe(1);
+  });
+});
+
+describe('yahoo-finance2 loading', () => {
+  it('finds the class from both the ESM and the CommonJS build', () => {
+    const cjs = createRequire(import.meta.url)('yahoo-finance2'); // { default: class }, as Node 26 + tsx loads it
+    expect(typeof cjs).toBe('object');
+    const Ctor = resolveYahooCtor(cjs);
+    expect(typeof new Ctor({ suppressNotices: ['yahooSurvey'] }).quoteSummary).toBe('function');
+    class Fake {}
+    expect(resolveYahooCtor(Fake)).toBe(Fake);
+  });
+
+  it('unwraps nested default exports', () => {
+    class Fake {}
+    expect(resolveYahooCtor({ default: { default: Fake } })).toBe(Fake);
+  });
+
+  it('explains a stale v2 install, naming the installed version', () => {
+    expect(() => resolveYahooCtor({ default: { quote() {}, chart() {} } })).toThrow(/did not provide the YahooFinance class .*installed version 4\.0\.4/);
   });
 });

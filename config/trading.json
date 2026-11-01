@@ -13,9 +13,11 @@
   "risk": {
     "riskPerTrade": 0.01,
     "maxPositionPct": 0.2,
+    "maxTotalExposurePct": 0.8,
     "maxOpenPositions": 5,
     "maxDailyLossPct": 0.02,
-    "maxOrderValue": 200000
+    "maxOrderValue": 200000,
+    "maxPriceDeviationPct": 0.03
   },
   "engine": {
     "evaluateAt": "15:10",
@@ -24,6 +26,8 @@
     "product": "CNC",
     "exchange": "NSE",
     "stopLimitBufferPct": 0.005,
+    "orderTimeoutSeconds": 60,
+    "triggeredStopGraceSeconds": 60,
     "holidays": []
   },
   "backtest": {

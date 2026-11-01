@@ -21,12 +21,13 @@ Two algorithms for Indian stocks (NSE), written in TypeScript:
 
 ## Setup
 
-Node 20+ required.
+Node 22+ required ([nodejs.org](https://nodejs.org), LTS). Run every command **inside the project folder**.
 
 ```bash
+cd TradingAlgo           # Windows Command Prompt: cd %USERPROFILE%\TradingAlgo
 npm install
-cp .env.example .env     # defaults to paper trading with Yahoo data
-npm test                 # 44 offline tests
+cp .env.example .env     # Command Prompt: copy .env.example .env. Defaults to paper trading with Yahoo data
+npm test                 # 86 offline tests (no network, no real orders)
 ```
 
 ## 1. Company study
@@ -36,6 +37,8 @@ npm run study                          # whole universe in config/study.json
 npm run study -- --symbols INFY,TCS    # just these
 npm run report -- INFY                 # print one company's report to the terminal
 ```
+
+Yahoo limits how many requests one internet connection may make. When it refuses (HTTP 429 "Too Many Requests"), the study waits and retries (10 s, 30 s, 60 s). If Yahoo still refuses, the study stops early and does **not** overwrite the previous watchlist. Wait 15–30 minutes and start with a few symbols (`npm run study -- --symbols INFY,TCS,ITC`).
 
 For each company it:
 
@@ -67,11 +70,15 @@ Banks and NBFCs often have no debt/equity or current ratio on Yahoo. With `"onMi
 |---|---|---|
 | `riskPerTrade` | 1% | Max loss per trade if the stop is hit, as a share of equity |
 | `maxPositionPct` | 20% | Max size of one position |
-| `maxOpenPositions` | 5 | |
+| `maxTotalExposurePct` | 80% | Max combined value of all positions |
+| `maxOpenPositions` | 5 | Counts orders still in flight |
 | `maxDailyLossPct` | 2% | If equity falls this much in a day, no new entries until tomorrow |
 | `maxOrderValue` | ₹2,00,000 | Hard cap per order |
+| `maxPriceDeviationPct` | 3% | Skip an entry if the live price is this far from the latest candle close |
 
-Also: the engine refuses new entries if the watchlist is missing or older than `watchlistMaxAgeDays` (7), and it halts if a file named `STOP` exists in the project root.
+Sizing uses the worst-case loss per share: entry slippage, a stop-limit fill at the bottom of its band, exit slippage, and costs on both sides (`backtest.costPct`, `backtest.slippagePct`, `engine.stopLimitBufferPct`). The config is validated on load, and out-of-range values (for example `riskPerTrade` above 5%) stop the program.
+
+The engine also refuses new entries whenever anything is uncertain: the watchlist is missing or older than `watchlistMaxAgeDays`; an order's outcome is unknown; a position is not protected by a broker-confirmed stop; the broker's position or order lookup failed; equity can't be valued; or the kill switch is on.
 
 ### Backtest
 
@@ -89,17 +96,38 @@ Reports return, CAGR, max drawdown, Sharpe, trade count, win rate, profit factor
 
 `npm run trade` starts a loop that runs during NSE hours (09:15-15:30 IST, Monday to Friday, minus `engine.holidays`):
 
-- **Every `pollSeconds` (30 s)**: on a new day, it records starting equity and re-places each position's stop-loss order (Kite stop orders are DAY orders and expire at the close). It also detects stop fills and positions closed by hand, and checks the daily loss limit. If the price has already gapped below a stop at the open, it sells straight away.
+- **Every `pollSeconds` (30 s)**: it reconciles every order and position with the broker, keeps a broker-confirmed stop on each position (re-placing it each morning, because Kite stop orders are DAY orders), applies fills, and checks the daily loss limit. If the price has already gapped below a stop, it sells.
 - **Once a day at `evaluateAt` (15:10 IST)**: it runs exit checks and trails stops on open positions, then looks for entries among watchlist stocks in score order.
 
-State lives in `data/state.json`, every trade is appended to `data/trades.jsonl`, and the log is `logs/engine.log`. You can restart the engine at any time and it carries on where it stopped.
+State lives in `data/state.json` (written atomically), every fill is appended to `data/trades.jsonl`, and the log is `logs/engine.log`. You can restart the engine at any time and it carries on where it stopped.
 
 ```bash
 npm run trade                    # paper trading (simulated fills at live prices)
-npm run trade -- --status        # positions, P&L and equity
+npm run trade -- --status        # positions, stop protection, open orders, equity
 npm run trade -- --once          # a single pass, for running from cron or a scheduler
-touch STOP                       # halt the engine (rm STOP to allow restarting)
 ```
+
+### Order safety
+
+- **Durable order intents.** Before any order is sent, the engine saves an *intent* with a unique ID, which is also sent to the broker as the order tag. Each tick it looks every unfinished intent up at the broker, by order ID or by tag.
+- **A timeout is never treated as a failure.** If sending times out or the network drops, the intent is marked *uncertain* and looked up by tag. It is never resent. It is marked *not found* only after three lookups spanning at least `orderTimeoutSeconds`.
+- **One entry attempt per stock per day**, whatever happened to it, so a restart mid-evaluation can't buy twice.
+- **Partial fills.** Fills are applied incrementally (filled quantity, remaining quantity, average price), and the stop is resized to cover exactly the shares held. A market order still unfinished after `orderTimeoutSeconds` has its remainder cancelled.
+- **Stop protection counts only when the broker shows the stop as `TRIGGER PENDING`.** If a stop's state is uncertain or unknown, the engine looks it up and never places a second one. If a stop-loss modification fails, the confirmed stop is kept and the modification retried. If a stop triggers but its limit doesn't fill within `triggeredStopGraceSeconds`, the engine cancels it and sells at market. After three rejected stop placements in a day, it stops retrying, logs an error each tick, and sells itself if the price reaches the stop.
+- **Exits.** The engine sells only after the broker confirms the stop is cancelled, so the stop and the sell can't both fill. Retries cover only the confirmed remaining shares.
+- **Position reconciliation.** If the broker shows fewer shares than the engine expects, that must be seen on two consecutive polls, with no orders still resolving, before it's accepted. A failed lookup changes nothing. Extra shares at the broker are reported but never managed.
+- Every Kite request has a timeout. Kite errors are classed as definite rejections or uncertain outcomes. Registered secrets and credential patterns are masked in logs.
+
+### Kill switch
+
+| Action | Effect |
+|---|---|
+| `touch STOP` (empty or `HALT`) | **No new entries.** The engine keeps running: positions stay managed, stops are re-placed each morning and trailed, and exits still happen. |
+| `echo FLATTEN > STOP` | **Close everything.** Cancels in-flight entries, then for each position cancels the stop (waiting for the broker to confirm) and sells at market. Once flat, the engine exits. |
+| `rm STOP` | Resume normal trading. |
+| Ctrl+C / killing the process | Nothing is sent to the broker. Stops placed today stay live until the close, then **positions are unprotected until the engine is restarted.** |
+
+The kill switch is checked at every tick and again before every new entry.
 
 ## Going live with Zerodha Kite
 
@@ -128,5 +156,6 @@ test/             offline tests (no network needed)
 
 - Yahoo Finance and Google News are free, unofficial sources. They can be delayed, have gaps, or change format. For serious use, swap in a paid fundamentals feed by implementing `FundamentalsProvider` in `src/data/types.ts`.
 - The sentiment model is a word list, not a language model. It reads headlines, not articles.
-- Paper fills are at the polled last price; a stop is only seen as triggered if a poll catches the price at or below it.
+- Paper fills are at the polled last price plus slippage. A stop is only seen as triggered if a poll catches the price at or below it, and a stop-limit fills only if the price is still above its limit. The paper broker can simulate partial fills (`fillRatio`), but real fills and queue priority will differ.
+- Recovery from crashes relies on the broker reporting orders by tag. Kite's order list covers only the current day, so an order whose outcome is unknown at the close is resolved the next day through position reconciliation, with the fill price unknown.
 - NSE holidays are not built in. Add them to `engine.holidays` (`"YYYY-MM-DD"`). Kite also rejects orders on holidays.

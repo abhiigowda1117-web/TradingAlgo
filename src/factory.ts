@@ -6,9 +6,13 @@ import type { Broker } from './trading/brokers/broker';
 import { KiteBroker } from './trading/brokers/kiteBroker';
 import { KiteClient } from './trading/brokers/kiteClient';
 import { PaperBroker } from './trading/brokers/paperBroker';
+import { registerSecret } from './util/log';
 
 export function kiteClient(env: Env): KiteClient {
   const { apiKey, accessToken } = env.kite;
+  registerSecret(apiKey);
+  registerSecret(accessToken);
+  registerSecret(env.kite.apiSecret);
   if (!apiKey || !accessToken) throw new Error('KITE_API_KEY and KITE_ACCESS_TOKEN must be set (run `npm run kite-login`).');
   return new KiteClient(apiKey, accessToken);
 }
@@ -21,7 +25,13 @@ export function broker(env: Env, cfg: TradingConfig, market: MarketData): Broker
   if (env.tradingMode === 'live') {
     return new KiteBroker(kiteClient(env), { exchange: cfg.engine.exchange, stopLimitBufferPct: cfg.engine.stopLimitBufferPct });
   }
-  return new PaperBroker(market, { file: paths.paperAccount, initialCash: env.paperCapital, costPct: cfg.backtest.costPct });
+  return new PaperBroker(market, {
+    file: paths.paperAccount,
+    initialCash: env.paperCapital,
+    costPct: cfg.backtest.costPct,
+    slippagePct: cfg.backtest.slippagePct,
+    stopLimitBufferPct: cfg.engine.stopLimitBufferPct,
+  });
 }
 
 export { loadEnv };
