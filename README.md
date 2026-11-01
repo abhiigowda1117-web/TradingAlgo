@@ -21,11 +21,12 @@ Two algorithms for Indian stocks (NSE), written in TypeScript:
 
 ## Setup
 
-Node 20+ required.
+Node 22+ required ([nodejs.org](https://nodejs.org), LTS). Run every command **inside the project folder**.
 
 ```bash
+cd TradingAlgo           # Windows Command Prompt: cd %USERPROFILE%\TradingAlgo
 npm install
-cp .env.example .env     # defaults to paper trading with Yahoo data
+cp .env.example .env     # Command Prompt: copy .env.example .env. Defaults to paper trading with Yahoo data
 npm test                 # 86 offline tests (no network, no real orders)
 ```
 
@@ -36,6 +37,8 @@ npm run study                          # whole universe in config/study.json
 npm run study -- --symbols INFY,TCS    # just these
 npm run report -- INFY                 # print one company's report to the terminal
 ```
+
+Yahoo limits how many requests one internet connection may make. When it refuses (HTTP 429 "Too Many Requests"), the study waits and retries (10 s, 30 s, 60 s). If Yahoo still refuses, the study stops early and does **not** overwrite the previous watchlist. Wait 15–30 minutes and start with a few symbols (`npm run study -- --symbols INFY,TCS,ITC`).
 
 For each company it:
 
