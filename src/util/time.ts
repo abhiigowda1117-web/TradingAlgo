@@ -47,4 +47,4 @@ export function daysBetween(a: Date, b: Date): number {
   return Math.abs(b.getTime() - a.getTime()) / 86_400_000;
 }
 
-export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+export const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));

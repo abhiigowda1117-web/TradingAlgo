@@ -1,9 +1,11 @@
 import { createInterface } from 'node:readline/promises';
 import { loadEnv } from '../config';
 import { createKiteSession, kiteLoginUrl } from '../trading/brokers/kiteClient';
+import { registerSecret } from '../util/log';
 
 // Usage: npm run kite-login   (Kite access tokens expire every morning)
 const { apiKey, apiSecret } = loadEnv().kite;
+registerSecret(apiSecret);
 if (!apiKey || !apiSecret) {
   console.error('Set KITE_API_KEY and KITE_API_SECRET in .env first.');
   process.exit(1);

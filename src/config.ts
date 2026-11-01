@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { validateTradingConfig } from './trading/risk';
 import type { MetricKey } from './types';
 
 export const ROOT = resolve(import.meta.dirname, '..');
@@ -56,9 +57,13 @@ export interface StrategyConfig {
 export interface RiskConfig {
   riskPerTrade: number;
   maxPositionPct: number;
+  /** Cap on the combined market value of all positions, as a share of equity. */
+  maxTotalExposurePct: number;
   maxOpenPositions: number;
   maxDailyLossPct: number;
   maxOrderValue: number;
+  /** Refuse entries when the live price is further than this from the latest candle close. */
+  maxPriceDeviationPct: number;
 }
 
 export interface TradingConfig {
@@ -71,6 +76,10 @@ export interface TradingConfig {
     product: 'CNC';
     exchange: 'NSE' | 'BSE';
     stopLimitBufferPct: number;
+    /** How long to wait for an order to reach a final state before treating it as unresolved. */
+    orderTimeoutSeconds: number;
+    /** How long a triggered-but-unfilled stop-limit may sit before the engine cancels it and exits at market. */
+    triggeredStopGraceSeconds: number;
     holidays: string[];
   };
   backtest: { initialCapital: number; costPct: number; slippagePct: number };
@@ -81,7 +90,12 @@ export function loadJson<T>(path: string): T {
 }
 
 export const loadStudyConfig = () => loadJson<StudyConfig>(paths.studyConfig);
-export const loadTradingConfig = () => loadJson<TradingConfig>(paths.tradingConfig);
+export function loadTradingConfig(path = paths.tradingConfig): TradingConfig {
+  const cfg = loadJson<TradingConfig>(path);
+  const errors = validateTradingConfig(cfg);
+  if (errors.length) throw new Error(`Invalid ${path}:\n  - ${errors.join('\n  - ')}`);
+  return cfg;
+}
 
 export interface Env {
   tradingMode: 'paper' | 'live';
@@ -95,10 +109,12 @@ export function loadEnv(): Env {
   if (mode !== 'paper' && mode !== 'live') throw new Error(`TRADING_MODE must be "paper" or "live", got "${mode}"`);
   const md = process.env.MARKET_DATA ?? 'yahoo';
   if (md !== 'yahoo' && md !== 'kite') throw new Error(`MARKET_DATA must be "yahoo" or "kite", got "${md}"`);
+  const paperCapital = Number(process.env.PAPER_CAPITAL ?? 500000);
+  if (!Number.isFinite(paperCapital) || paperCapital <= 0) throw new Error(`PAPER_CAPITAL must be a positive number, got "${process.env.PAPER_CAPITAL}"`);
   return {
     tradingMode: mode,
     marketData: md,
-    paperCapital: Number(process.env.PAPER_CAPITAL ?? 500000),
+    paperCapital,
     kite: {
       apiKey: process.env.KITE_API_KEY || undefined,
       apiSecret: process.env.KITE_API_SECRET || undefined,
