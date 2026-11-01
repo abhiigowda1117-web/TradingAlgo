@@ -121,10 +121,13 @@ export class YahooData implements MarketData, FundamentalsProvider {
 
   constructor(private exchange: 'NSE' | 'BSE' = 'NSE') {}
 
-  async getDailyCandles(symbol: string, from: Date, to?: Date): Promise<Candle[]> {
-    const res = await withRateLimitRetry(`chart ${symbol}`, () =>
-      this.yf.chart(toYahoo(symbol, this.exchange), { period1: from, period2: to ?? new Date(), interval: '1d' }),
-    );
+  getDailyCandles(symbol: string, from: Date, to?: Date): Promise<Candle[]> {
+    return this.getTickerCandles(toYahoo(symbol, this.exchange), from, to);
+  }
+
+  /** Daily candles for any Yahoo ticker, e.g. "^NSEI" for the NIFTY 50 price index. Split-adjusted, not dividend-adjusted. */
+  async getTickerCandles(ticker: string, from: Date, to?: Date): Promise<Candle[]> {
+    const res = await withRateLimitRetry(`chart ${ticker}`, () => this.yf.chart(ticker, { period1: from, period2: to ?? new Date(), interval: '1d' }));
     return res.quotes
       .filter((q) => q.open != null && q.high != null && q.low != null && q.close != null)
       .map((q) => ({ time: new Date(q.date), open: q.open!, high: q.high!, low: q.low!, close: q.close!, volume: q.volume ?? 0 }));

@@ -48,7 +48,12 @@ export const tradingCfg: TradingConfig = {
     triggeredStopGraceSeconds: 60,
     holidays: [],
   },
-  backtest: { initialCapital: 500000, costPct: 0.0012, slippagePct: 0.0005 },
+  backtest: {
+    initialCapital: 500000,
+    costPct: 0.0012,
+    slippagePct: 0.0005,
+    costs: { brokeragePct: 0, brokerageMaxPerOrder: 0, sttPct: 0.001, exchangePct: 0.0000297, sebiPct: 0.000001, stampBuyPct: 0.00015, gstPct: 0.18, dpChargePerSell: 15.93 },
+  },
 };
 
 /** In-memory market data with settable prices. */

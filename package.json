@@ -11,6 +11,7 @@
     "study": "tsx src/cli/study.ts",
     "report": "tsx src/cli/report.ts",
     "backtest": "tsx src/cli/backtest.ts",
+    "portfolio": "tsx src/cli/portfolio.ts",
     "trade": "tsx src/cli/trade.ts",
     "kite-login": "tsx src/cli/kiteLogin.ts",
     "typecheck": "tsc --noEmit",

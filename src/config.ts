@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import type { CostSchedule } from './trading/costs';
 import { validateTradingConfig } from './trading/risk';
 import type { MetricKey } from './types';
 
@@ -82,7 +83,14 @@ export interface TradingConfig {
     triggeredStopGraceSeconds: number;
     holidays: string[];
   };
-  backtest: { initialCapital: number; costPct: number; slippagePct: number };
+  backtest: {
+    initialCapital: number;
+    /** Flat per-side cost used for position sizing and the paper broker. */
+    costPct: number;
+    slippagePct: number;
+    /** Itemised Indian delivery charges used by the backtests. */
+    costs: CostSchedule;
+  };
 }
 
 export function loadJson<T>(path: string): T {

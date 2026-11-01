@@ -27,7 +27,7 @@ Node 22+ required ([nodejs.org](https://nodejs.org), LTS). Run every command **i
 cd TradingAlgo           # Windows Command Prompt: cd %USERPROFILE%\TradingAlgo
 npm install
 cp .env.example .env     # Command Prompt: copy .env.example .env. Defaults to paper trading with Yahoo data
-npm test                 # 86 offline tests (no network, no real orders)
+npm test                 # offline tests (no network, no real orders)
 ```
 
 ## 1. Company study
@@ -128,6 +128,35 @@ npm run trade -- --once          # a single pass, for running from cron or a sch
 | Ctrl+C / killing the process | Nothing is sent to the broker. Stops placed today stay live until the close, then **positions are unprotected until the engine is restarted.** |
 
 The kill switch is checked at every tick and again before every new entry.
+
+### Portfolio backtest vs NIFTY 50
+
+```bash
+npm run portfolio                                              # 2016-01-01 to today
+npm run portfolio -- --from 2016-01-01 --to 2025-12-31 --split 2022-01-01 --trades
+npm run portfolio -- --constituents data/nifty50_members.csv  # point-in-time universe (symbol,from,to)
+npm run portfolio -- --benchmark-csv data/NIFTY50_TRI.csv --benchmark-type TRI
+```
+
+All stocks share one pool of capital (`backtest.initialCapital`, ₹5,00,000), with up to `maxOpenPositions` positions and every risk limit applied.
+
+- **Execution:** a signal from day *t*'s close fills at day *t+1*'s open, plus slippage. Stops act intraday at the stop price, or at the open if the price gaps through. An entry that opens at or below its planned stop is skipped.
+- **Simultaneous signals:** filled in alphabetical order, as a neutral tie-break.
+- **Cash:** sale proceeds are usable from the next session. Positions open at the end are shown both marked to market and after selling costs.
+- **Costs:** itemised Indian delivery charges from `backtest.costs`: STT, stamp duty, exchange and SEBI fees, GST, and DP charges. Check these against your broker's current rates.
+- **Benchmark:** buy-and-hold of the NIFTY 50 with the same capital, calendar, costs and slippage.
+  - The default is Yahoo `^NSEI`, a **price index** without dividends.
+  - For the **Total Return Index**, download *NIFTY 50 TRI* history from niftyindices.com and pass it with `--benchmark-type TRI`.
+- **Training and test periods:** results are shown for the full period, the training period and the test period (`--split`, default at 70% of the range). Tune parameters on the training period only.
+- **Price cache:** prices are saved in `data/cache/yahoo/` for 24 hours (`--refresh` re-downloads).
+
+**Biases that are not solved:**
+- Without `--constituents`, the universe is today's large caps (**survivorship bias**, which flatters the strategy).
+- The company-study filter isn't applied, because past fundamentals aren't available.
+- Dividends on the strategy's holdings aren't credited.
+- Capital-gains tax isn't deducted from either side.
+
+`npm run backtest` (one stock at a time) uses the same execution rules.
 
 ## Going live with Zerodha Kite
 
