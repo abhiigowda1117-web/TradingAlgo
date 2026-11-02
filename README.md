@@ -27,7 +27,7 @@ Node 22+ required ([nodejs.org](https://nodejs.org), LTS). Run every command **i
 cd TradingAlgo           # Windows Command Prompt: cd %USERPROFILE%\TradingAlgo
 npm install
 cp .env.example .env     # Command Prompt: copy .env.example .env. Defaults to paper trading with Yahoo data
-npm test                 # 86 offline tests (no network, no real orders)
+npm test                 # offline tests (no network, no real orders)
 ```
 
 ## 1. Company study
@@ -54,6 +54,51 @@ For each company it:
 Outputs: `data/watchlist.json` (read by the trading engine) and `reports/<date>/`.
 
 Banks and NBFCs often have no debt/equity or current ratio on Yahoo. With `"onMissing": "pass"` they are not penalised for missing data; set it to `"fail"` to be strict.
+
+## Today's update on one company
+
+```bash
+npm run company -- Reliance                 # by name
+npm run company -- BEL                      # or by NSE symbol
+npm run company -- "Bharat Electronics" --days 7
+```
+
+Prints, in the terminal:
+- **Price:** today's price and change, day range, volume against the 3-month average, 52-week range, market cap and P/E.
+- **Trend:** EMA 20/50/200, RSI, MACD, recent returns, and nearest support and resistance.
+- **News:** the latest headlines with category and tone tags.
+- **Announcements:** the latest NSE announcements, or a link when NSE blocks the request.
+
+Prices are delayed, not real-time. It is read-only and never trades.
+
+## Company research (any NSE stock)
+
+```bash
+npm run research -- HIKAL                         # report -> reports/research/HIKAL-<date>.md and .json
+npm run research -- HIKAL --peers DIVISLAB,LAURUSLABS
+npm run dashboard                                 # then open http://localhost:3000, type a symbol, click Analyze
+```
+
+The report covers:
+1. **Overview:** business description, sector, industry and key people.
+2. **Fundamentals:** growth, EPS, ROE, ROCE, debt, margins, cash flow and valuation, with annual and quarterly trends.
+3. **Technicals:** EMA 20/50/200, RSI, MACD, volume, support/resistance, trend and returns.
+4. **News and NSE announcements.**
+5. **Peer comparison.**
+6. **Rule-based summary:** business quality, financial strength, growth, risks, valuation, technical outlook, and bullish and bearish scenarios.
+
+The dashboard shows the same content with charts.
+
+**Data rules:**
+- **Labels:** every figure is labelled **Reported** (from the source as-is), **Calculated** (formula shown), **Estimate** (an analyst forecast) or **Not Available**. Missing data is never filled in.
+- **Sources:**
+  - Yahoo Finance for the profile, statements and prices. These are third-party data, delayed rather than real-time, and should be checked against filings.
+  - Google News for headlines.
+  - NSE's website for announcements. NSE has no official API: when it blocks the request, the report says Not Available and links to the official NSE/BSE pages.
+- **Products and segments:** there's no free structured source, so the report points to the annual report instead.
+- **Peers:** taken from `config/peers.json` (edit it, or pass `--peers`). Stocks with no configured peers show none.
+- **Interpretation:** fixed rules, with no price targets or predictions.
+- **Separation:** the research and dashboard code cannot import any trading or broker code (a test enforces this). The dashboard listens on this computer only.
 
 ## 2. Trading algo
 
@@ -128,6 +173,35 @@ npm run trade -- --once          # a single pass, for running from cron or a sch
 | Ctrl+C / killing the process | Nothing is sent to the broker. Stops placed today stay live until the close, then **positions are unprotected until the engine is restarted.** |
 
 The kill switch is checked at every tick and again before every new entry.
+
+### Portfolio backtest vs NIFTY 50
+
+```bash
+npm run portfolio                                              # 2016-01-01 to today
+npm run portfolio -- --from 2016-01-01 --to 2025-12-31 --split 2022-01-01 --trades
+npm run portfolio -- --constituents data/nifty50_members.csv  # point-in-time universe (symbol,from,to)
+npm run portfolio -- --benchmark-csv data/NIFTY50_TRI.csv --benchmark-type TRI
+```
+
+All stocks share one pool of capital (`backtest.initialCapital`, ₹5,00,000), with up to `maxOpenPositions` positions and every risk limit applied.
+
+- **Execution:** a signal from day *t*'s close fills at day *t+1*'s open, plus slippage. Stops act intraday at the stop price, or at the open if the price gaps through. An entry that opens at or below its planned stop is skipped.
+- **Simultaneous signals:** filled in alphabetical order, as a neutral tie-break.
+- **Cash:** sale proceeds are usable from the next session. Positions open at the end are shown both marked to market and after selling costs.
+- **Costs:** itemised Indian delivery charges from `backtest.costs`: STT, stamp duty, exchange and SEBI fees, GST, and DP charges. Check these against your broker's current rates.
+- **Benchmark:** buy-and-hold of the NIFTY 50 with the same capital, calendar, costs and slippage.
+  - The default is Yahoo `^NSEI`, a **price index** without dividends.
+  - For the **Total Return Index**, download *NIFTY 50 TRI* history from niftyindices.com and pass it with `--benchmark-type TRI`.
+- **Training and test periods:** results are shown for the full period, the training period and the test period (`--split`, default at 70% of the range). Tune parameters on the training period only.
+- **Price cache:** prices are saved in `data/cache/yahoo/` for 24 hours (`--refresh` re-downloads).
+
+**Biases that are not solved:**
+- Without `--constituents`, the universe is today's large caps (**survivorship bias**, which flatters the strategy).
+- The company-study filter isn't applied, because past fundamentals aren't available.
+- Dividends on the strategy's holdings aren't credited.
+- Capital-gains tax isn't deducted from either side.
+
+`npm run backtest` (one stock at a time) uses the same execution rules.
 
 ## Going live with Zerodha Kite
 

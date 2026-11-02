@@ -1,7 +1,7 @@
 import type { RiskConfig, StrategyConfig, TradingConfig } from '../config';
 import type { Candle } from '../types';
-import { positionSize, type CostModel } from './risk';
-import { computeIndicators, entrySignal, exitSignal } from './strategy';
+import { dayKey, runPortfolioBacktest } from './portfolioBacktest';
+import { cagr, maxDrawdown, periodReturns, sharpe, yearsBetween } from './stats';
 
 export interface BacktestTrade {
   entryTime: Date;
@@ -36,96 +36,37 @@ export interface Metrics {
   exposure: number;
 }
 
-interface Position {
-  qty: number;
-  entryPrice: number;
-  entryTime: Date;
-  initialStop: number;
-  stop: number;
-  highestClose: number;
-  entryCost: number;
-}
-
 /**
- * Bar-by-bar long-only backtest on one symbol. Signals are evaluated at the bar close and filled
- * at that close (the live engine trades just before the close). Stops are checked against the
- * next bars' lows; a gap below the stop fills at the open. Costs and slippage apply on both sides.
+ * Single-symbol backtest: the portfolio backtester run on one stock with at most one position, so
+ * both share the same execution rules (signal at a close, fill at the next session's open, stops
+ * intraday, gaps filled at the open, itemised costs, slippage). Any open position is sold at the
+ * final close.
  */
 export function backtest(
   symbol: string,
   candles: Candle[],
   cfg: { strategy: StrategyConfig; risk: RiskConfig; backtest: TradingConfig['backtest'] },
 ): BacktestResult {
-  const { costPct, slippagePct, initialCapital } = cfg.backtest;
-  const costs: CostModel = { costPct, slippagePct, stopBufferPct: 0 };
-  const ind = computeIndicators(candles, cfg.strategy);
-  let cash = initialCapital;
-  let pos: Position | undefined;
-  let barsInMarket = 0;
-  const trades: BacktestTrade[] = [];
-  const equityCurve: BacktestResult['equityCurve'] = [];
-
-  const close = (c: Candle, rawPrice: number, reason: string) => {
-    const p = pos!;
-    const price = rawPrice * (1 - slippagePct);
-    const proceeds = p.qty * price;
-    const exitCost = proceeds * costPct;
-    cash += proceeds - exitCost;
-    const pnl = (price - p.entryPrice) * p.qty - p.entryCost - exitCost;
-    trades.push({
-      entryTime: p.entryTime,
-      exitTime: c.time,
-      entryPrice: p.entryPrice,
-      exitPrice: price,
-      qty: p.qty,
-      pnl,
-      rMultiple: pnl / ((p.entryPrice - p.initialStop) * p.qty),
-      exitReason: reason,
-    });
-    pos = undefined;
-  };
-
-  for (let i = 0; i < candles.length; i++) {
-    const c = candles[i]!;
-
-    if (pos) {
-      barsInMarket++;
-      if (c.low <= pos.stop) {
-        close(c, Math.min(c.open, pos.stop), 'stop hit');
-      } else {
-        const d = exitSignal(candles, ind, i, pos, cfg.strategy);
-        if (d.exit) close(c, c.close, d.reason);
-        else {
-          pos.stop = d.stop;
-          pos.highestClose = d.highestClose;
-        }
-      }
-    }
-
-    if (!pos && i < candles.length - 1) {
-      const e = entrySignal(candles, ind, i, cfg.strategy);
-      if (e.enter) {
-        const price = c.close * (1 + slippagePct);
-        const equity = cash;
-        const { qty } = positionSize({ equity, cash, price: c.close, stop: e.stop }, cfg.risk, costs);
-        if (qty > 0) {
-          const entryCost = qty * price * costPct;
-          cash -= qty * price + entryCost;
-          pos = { qty, entryPrice: price, entryTime: c.time, initialStop: e.stop, stop: e.stop, highestClose: c.close, entryCost };
-        }
-      }
-    }
-
-    equityCurve.push({ time: c.time, equity: cash + (pos ? pos.qty * c.close : 0) });
-  }
-
-  const last = candles.at(-1);
-  if (pos && last) {
-    close(last, last.close, 'end of data');
-    equityCurve[equityCurve.length - 1] = { time: last.time, equity: cash };
-  }
-
-  return { symbol, trades, equityCurve, metrics: computeMetrics(initialCapital, equityCurve, trades, barsInMarket) };
+  const { initialCapital, slippagePct, costs } = cfg.backtest;
+  const days = candles.map((c) => dayKey(c.time));
+  if (days.length === 0) return { symbol, trades: [], equityCurve: [], metrics: computeMetrics(initialCapital, [], [], 0) };
+  const r = runPortfolioBacktest(
+    { [symbol]: candles },
+    { strategy: cfg.strategy, risk: { ...cfg.risk, maxOpenPositions: 1 }, costs, slippagePct, initialCapital, start: days[0]!, end: days.at(-1)!, liquidateAtEnd: true },
+  );
+  const toDate = (d: string) => new Date(`${d}T00:00:00Z`);
+  const trades: BacktestTrade[] = r.trades.map((t) => ({
+    entryTime: toDate(t.entryDay),
+    exitTime: toDate(t.exitDay),
+    entryPrice: t.entryPrice,
+    exitPrice: t.exitPrice,
+    qty: t.qty,
+    pnl: t.netPnl,
+    rMultiple: t.netPnl / ((t.entryPrice - t.initialStop) * t.qty),
+    exitReason: t.exitReason,
+  }));
+  const equityCurve = r.curve.map((p) => ({ time: toDate(p.day), equity: p.equity }));
+  return { symbol, trades, equityCurve, metrics: computeMetrics(initialCapital, equityCurve, trades, r.curve.filter((p) => p.positions > 0).length) };
 }
 
 export function computeMetrics(
@@ -134,33 +75,19 @@ export function computeMetrics(
   trades: BacktestTrade[],
   barsInMarket: number,
 ): Metrics {
-  const endEquity = curve.at(-1)?.equity ?? startEquity;
-  const years = curve.length > 1 ? (curve.at(-1)!.time.getTime() - curve[0]!.time.getTime()) / (365.25 * 86_400_000) : 0;
-
-  let peak = startEquity;
-  let maxDrawdown = 0;
-  const rets: number[] = [];
-  let prev = startEquity;
-  for (const { equity } of curve) {
-    peak = Math.max(peak, equity);
-    maxDrawdown = Math.max(maxDrawdown, (peak - equity) / peak);
-    rets.push(equity / prev - 1);
-    prev = equity;
-  }
-  const mean = rets.reduce((a, b) => a + b, 0) / (rets.length || 1);
-  const sd = Math.sqrt(rets.reduce((a, b) => a + (b - mean) ** 2, 0) / Math.max(rets.length - 1, 1));
-
+  const values = curve.map((p) => p.equity);
+  const endEquity = values.at(-1) ?? startEquity;
+  const years = curve.length > 1 ? yearsBetween(curve[0]!.time, curve.at(-1)!.time) : 0;
   const wins = trades.filter((t) => t.pnl > 0);
   const grossWin = wins.reduce((a, t) => a + t.pnl, 0);
   const grossLoss = -trades.filter((t) => t.pnl <= 0).reduce((a, t) => a + t.pnl, 0);
-
   return {
     startEquity,
     endEquity,
     totalReturn: endEquity / startEquity - 1,
-    cagr: years > 0 ? (endEquity / startEquity) ** (1 / years) - 1 : 0,
-    maxDrawdown,
-    sharpe: sd > 0 ? (mean / sd) * Math.sqrt(252) : 0,
+    cagr: cagr(startEquity, endEquity, years),
+    maxDrawdown: maxDrawdown(values, startEquity),
+    sharpe: sharpe(periodReturns(values, startEquity)),
     trades: trades.length,
     winRate: trades.length ? wins.length / trades.length : 0,
     profitFactor: grossLoss > 0 ? grossWin / grossLoss : grossWin > 0 ? Infinity : 0,

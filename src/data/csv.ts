@@ -27,3 +27,43 @@ export function readCandlesCsv(path: string): Candle[] {
     })
     .sort((a, b) => a.time.getTime() - b.time.getTime());
 }
+
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+/** Parses YYYY-MM-DD, ISO timestamps, or "DD-Mon-YYYY" / "DD Mon YYYY" (as in NSE index downloads) to a UTC date. */
+export function parseDay(raw: string): Date {
+  const s = raw.trim().replace(/^"|"$/g, '');
+  const m = /^(\d{1,2})[\s-]([A-Za-z]{3})[A-Za-z]*[\s-](\d{4})$/.exec(s);
+  if (m) {
+    const mon = MONTHS.indexOf(m[2]!.toLowerCase());
+    if (mon < 0) throw new Error(`Unknown month in date "${raw}"`);
+    return new Date(Date.UTC(Number(m[3]), mon, Number(m[1])));
+  }
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) throw new Error(`Unrecognised date "${raw}"`);
+  return d;
+}
+
+/**
+ * Reads a date + value series (e.g. a NIFTY 50 TRI download from niftyindices.com) as close-only
+ * candles. The value column is the one named `valueColumn`, else the first of close /
+ * "total returns index" / tri / value.
+ */
+export function readSeriesCsv(path: string, valueColumn?: string): Candle[] {
+  const [header, ...rows] = readFileSync(path, 'utf8').replace(/^\uFEFF/, '').trim().split(/\r?\n/);
+  const split = (line: string) => (line.match(/("([^"]*)"|[^,]*)(,|$)/g) ?? []).map((x) => x.replace(/,$/, '').replace(/^"|"$/g, '').trim());
+  const cols = split(header ?? '').map((c) => c.toLowerCase());
+  const d = cols.findIndex((c) => c === 'date' || c === 'time' || c === 'timestamp');
+  const wanted = valueColumn ? [valueColumn.toLowerCase()] : ['close', 'total returns index', 'tri', 'value'];
+  const v = cols.findIndex((c) => wanted.includes(c));
+  if (d < 0 || v < 0) throw new Error(`${path}: need a date column and one of ${wanted.join(' / ')} (found ${cols.join(', ')})`);
+  return rows
+    .filter((r) => r.trim())
+    .map((r) => {
+      const f = split(r);
+      const close = Number(f[v]!.replace(/,/g, ''));
+      if (!(close > 0)) throw new Error(`${path}: invalid value "${f[v]}"`);
+      return { time: parseDay(f[d]!), open: close, high: close, low: close, close, volume: 0 };
+    })
+    .sort((a, b) => a.time.getTime() - b.time.getTime());
+}

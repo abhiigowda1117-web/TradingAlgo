@@ -128,6 +128,18 @@ export function validateTradingConfig(cfg: TradingConfig): string[] {
   num('backtest.initialCapital', b.initialCapital, 0, 1e12, { minExclusive: true });
   num('backtest.costPct', b.costPct, 0, 0.02);
   num('backtest.slippagePct', b.slippagePct, 0, 0.05);
+  const c = b.costs;
+  if (!c) errs.push('backtest.costs is required (itemised delivery charges)');
+  else {
+    num('backtest.costs.brokeragePct', c.brokeragePct, 0, 0.01);
+    num('backtest.costs.brokerageMaxPerOrder', c.brokerageMaxPerOrder, 0, 1000);
+    num('backtest.costs.sttPct', c.sttPct, 0, 0.01);
+    num('backtest.costs.exchangePct', c.exchangePct, 0, 0.001);
+    num('backtest.costs.sebiPct', c.sebiPct, 0, 0.0001);
+    num('backtest.costs.stampBuyPct', c.stampBuyPct, 0, 0.001);
+    num('backtest.costs.gstPct', c.gstPct, 0, 0.5);
+    num('backtest.costs.dpChargePerSell', c.dpChargePerSell, 0, 100);
+  }
   return errs;
 }
 
