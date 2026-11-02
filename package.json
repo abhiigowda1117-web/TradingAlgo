@@ -11,6 +11,7 @@
     "study": "tsx src/cli/study.ts",
     "report": "tsx src/cli/report.ts",
     "research": "tsx src/cli/research.ts",
+    "company": "tsx src/cli/company.ts",
     "dashboard": "tsx src/cli/dashboard.ts",
     "backtest": "tsx src/cli/backtest.ts",
     "portfolio": "tsx src/cli/portfolio.ts",

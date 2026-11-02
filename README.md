@@ -55,6 +55,22 @@ Outputs: `data/watchlist.json` (read by the trading engine) and `reports/<date>/
 
 Banks and NBFCs often have no debt/equity or current ratio on Yahoo. With `"onMissing": "pass"` they are not penalised for missing data; set it to `"fail"` to be strict.
 
+## Today's update on one company
+
+```bash
+npm run company -- Reliance                 # by name
+npm run company -- BEL                      # or by NSE symbol
+npm run company -- "Bharat Electronics" --days 7
+```
+
+Prints, in the terminal:
+- **Price:** today's price and change, day range, volume against the 3-month average, 52-week range, market cap and P/E.
+- **Trend:** EMA 20/50/200, RSI, MACD, recent returns, and nearest support and resistance.
+- **News:** the latest headlines with category and tone tags.
+- **Announcements:** the latest NSE announcements, or a link when NSE blocks the request.
+
+Prices are delayed, not real-time. It is read-only and never trades.
+
 ## Company research (any NSE stock)
 
 ```bash

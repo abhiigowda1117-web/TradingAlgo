@@ -18,6 +18,7 @@ const LEXICON: Record<string, number> = {
   downgrade: -2, downgraded: -2, underperform: -2, sell: -1, bearish: -2, weak: -1, probe: -2,
   fraud: -3, penalty: -2, fine: -1, raid: -2, default: -3, lawsuit: -2, resigns: -2, resignation: -2,
   pledge: -1, ban: -2, scam: -3, warning: -1, cut: -1, cuts: -1, layoffs: -2, strike: -1,
+  slows: -1, slowdown: -2, muted: -1, subdued: -1, dips: -1, slips: -1, slide: -1, slides: -1, sheds: -1,
   '52-week low': -2, 'net loss': -3, 'misses estimates': -3, 'cuts guidance': -3, 'target price cut': -2,
   'profit falls': -2, 'profit drops': -2, 'show cause': -2, 'sebi notice': -2,
 };
