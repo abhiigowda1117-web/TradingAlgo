@@ -97,6 +97,8 @@ npm run server
 ```
 Open **http://localhost:3001** and sign in. Press Ctrl+C to stop.
 
+**Windows, one click:** double-click `start-algotrade.cmd` in the TradingAlgo folder. It stops any old server on port 3001, runs `git pull`, installs anything new, rebuilds the website, starts the server and opens the browser. Keep its window open; closing it stops the website.
+
 For frontend development with live reload, use two windows: `npm run server` in one and `npm run web:dev` in the other, then open http://localhost:5173.
 
 ### Security
