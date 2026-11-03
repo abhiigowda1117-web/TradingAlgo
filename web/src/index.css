@@ -100,7 +100,7 @@
 }
 
 /* Dashboard arena: each runner spans the full width, so translateX(%) is a share of the arena width.
-   One 10 s cycle: charge, clash, one step back, then they cross at the same level like runners on a road:
+   One 10 s cycle: charge, meet head to head and pause, one step back, then they cross at the same level like runners on a road:
    the bear drops into the back lane (smaller and darker, further away) while the bull passes in front.
    They land in each other's places, turn around, and do it again.
    --half is about half an animal's width; --lane stays 0 (no jumping), the depth effect does the passing. */
@@ -118,31 +118,27 @@
 }
 @keyframes arena-bull {
   0%, 6% { transform: translate(25%, 0); }
-  18% { transform: translate(calc(50% - var(--half)), 0); }
-  21% { transform: translate(calc(50% - var(--half) - 26px), 0); }
-  25% { transform: translate(calc(50% - var(--half) - 26px), calc(-1 * var(--lane))); }
-  35% { transform: translate(calc(50% + var(--half) + 26px), calc(-1 * var(--lane))); }
+  16%, 21% { transform: translate(calc(50% - var(--half)), 0); }
+  24%, 26% { transform: translate(calc(50% - var(--half) - 26px), 0); }
+  35% { transform: translate(calc(50% + var(--half) + 26px), 0); }
   39% { transform: translate(calc(50% + var(--half) + 40px), 0); }
   46%, 56% { transform: translate(75%, 0); }
-  68% { transform: translate(calc(50% + var(--half)), 0); }
-  71% { transform: translate(calc(50% + var(--half) + 26px), 0); }
-  75% { transform: translate(calc(50% + var(--half) + 26px), calc(-1 * var(--lane))); }
-  85% { transform: translate(calc(50% - var(--half) - 26px), calc(-1 * var(--lane))); }
+  66%, 71% { transform: translate(calc(50% + var(--half)), 0); }
+  74%, 76% { transform: translate(calc(50% + var(--half) + 26px), 0); }
+  85% { transform: translate(calc(50% - var(--half) - 26px), 0); }
   89% { transform: translate(calc(50% - var(--half) - 40px), 0); }
   96%, 100% { transform: translate(25%, 0); }
 }
 @keyframes arena-bear {
   0%, 6% { transform: translate(75%, 0); }
-  18% { transform: translate(calc(50% + var(--half)), 0); }
-  21% { transform: translate(calc(50% + var(--half) + 26px), 0); }
-  25% { transform: translate(calc(50% + var(--half) + 26px), var(--lane)); }
-  35% { transform: translate(calc(50% - var(--half) - 26px), var(--lane)); }
+  16%, 21% { transform: translate(calc(50% + var(--half)), 0); }
+  24%, 26% { transform: translate(calc(50% + var(--half) + 26px), 0); }
+  35% { transform: translate(calc(50% - var(--half) - 26px), 0); }
   39% { transform: translate(calc(50% - var(--half) - 40px), 0); }
   46%, 56% { transform: translate(25%, 0); }
-  68% { transform: translate(calc(50% - var(--half)), 0); }
-  71% { transform: translate(calc(50% - var(--half) - 26px), 0); }
-  75% { transform: translate(calc(50% - var(--half) - 26px), var(--lane)); }
-  85% { transform: translate(calc(50% + var(--half) + 26px), var(--lane)); }
+  66%, 71% { transform: translate(calc(50% - var(--half)), 0); }
+  74%, 76% { transform: translate(calc(50% - var(--half) - 26px), 0); }
+  85% { transform: translate(calc(50% + var(--half) + 26px), 0); }
   89% { transform: translate(calc(50% + var(--half) + 40px), 0); }
   96%, 100% { transform: translate(75%, 0); }
 }
@@ -155,22 +151,22 @@
 /* The bear turns like the bull, and while they cross it steps into the back lane: smaller, a little higher
    (further away) and darker, so the bull visibly runs past in front instead of jumping over it. */
 @keyframes arena-bear-depth {
-  0%, 21% { transform: translate(-50%, -50%) scale(1, 1); filter: brightness(1); }
-  24%, 36% { transform: translate(-50%, calc(-50% - 5px)) scale(0.78, 0.78); filter: brightness(0.55); }
-  39%, 46% { transform: translate(-50%, -50%) scale(1, 1); filter: brightness(1); }
-  49%, 71% { transform: translate(-50%, -50%) scale(-1, 1); filter: brightness(1); }
-  74%, 86% { transform: translate(-50%, calc(-50% - 5px)) scale(-0.78, 0.78); filter: brightness(0.55); }
-  89%, 96% { transform: translate(-50%, -50%) scale(-1, 1); filter: brightness(1); }
+  0%, 24% { transform: translate(-50%, -50%) scale(1, 1); filter: brightness(1); }
+  27%, 35% { transform: translate(-50%, calc(-50% - 5px)) scale(0.78, 0.78); filter: brightness(0.55); }
+  38%, 46% { transform: translate(-50%, -50%) scale(1, 1); filter: brightness(1); }
+  49%, 74% { transform: translate(-50%, -50%) scale(-1, 1); filter: brightness(1); }
+  77%, 85% { transform: translate(-50%, calc(-50% - 5px)) scale(-0.78, 0.78); filter: brightness(0.55); }
+  88%, 96% { transform: translate(-50%, -50%) scale(-1, 1); filter: brightness(1); }
   99%, 100% { transform: translate(-50%, -50%) scale(1, 1); filter: brightness(1); }
 }
 @keyframes arena-shake {
-  0%, 17.5%, 20%, 67.5%, 70%, 100% { transform: translate(0, 0); }
-  18% { transform: translate(2px, -1px); }
-  18.6% { transform: translate(-2px, 1px); }
-  19.3% { transform: translate(1px, 0); }
-  68% { transform: translate(-2px, -1px); }
-  68.6% { transform: translate(2px, 1px); }
-  69.3% { transform: translate(-1px, 0); }
+  0%, 15.5%, 18%, 65.5%, 68%, 100% { transform: translate(0, 0); }
+  16% { transform: translate(2px, -1px); }
+  16.6% { transform: translate(-2px, 1px); }
+  17.3% { transform: translate(1px, 0); }
+  66% { transform: translate(-2px, -1px); }
+  66.6% { transform: translate(2px, 1px); }
+  67.3% { transform: translate(-1px, 0); }
 }
 
 @media (prefers-reduced-motion: reduce) {
