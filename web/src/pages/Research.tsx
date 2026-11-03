@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
 import { BullBearFight } from '../components/BullBearFight';
+import { StockChart } from '../components/StockChart';
 import { Bars, TimeChart } from '../components/TimeChart';
 import { Badge, Card, Empty, ErrorBox, PageHeader } from '../components/ui';
 import { api } from '../lib/api';
@@ -138,6 +139,11 @@ function LiveStats({ symbol }: { symbol: string }) {
 }
 
 function Report({ r }: { r: ResearchReport }) {
+  const [showChart, setShowChart] = useState(false);
+  const chartRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (showChart) chartRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [showChart]);
   const f = r.fundamentals;
   const t = r.technicals;
   const priceLines = useMemo(
@@ -170,6 +176,9 @@ function Report({ r }: { r: ResearchReport }) {
           <div>
             <h2 className="text-xl font-semibold">{r.overview.name ?? r.symbol} <span className="text-base font-normal text-slate-400">NSE: {r.symbol}</span></h2>
             <p className="text-sm text-slate-400">{[r.overview.sector, r.overview.industry].filter(Boolean).join(' · ') || 'Sector Not Available'}</p>
+            <button type="button" className="btn mt-3" onClick={() => setShowChart((x) => !x)} aria-expanded={showChart}>
+              {showChart ? 'Hide chart' : '📈 View Chart'}
+            </button>
           </div>
           <LivePrice symbol={r.symbol} fallback={r.overview.price} fallbackTime={r.overview.priceTime} />
         </div>
@@ -180,6 +189,14 @@ function Report({ r }: { r: ResearchReport }) {
         </div>
         {r.warnings.map((w) => <p key={w} className="mt-2 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-sm text-amber-200">{w}</p>)}
       </Card>
+
+      {showChart && (
+        <div ref={chartRef} className="scroll-mt-16">
+          <Card title={`Chart · ${r.symbol}`} action={<button type="button" className="text-xs text-accent" onClick={() => setShowChart(false)}>Close</button>}>
+            <StockChart symbol={r.symbol} />
+          </Card>
+        </div>
+      )}
 
       <Card title="1 · Company overview">
         <p className="text-sm leading-relaxed text-slate-300">{r.overview.description ?? NA}</p>

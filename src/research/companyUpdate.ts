@@ -8,6 +8,8 @@ import type { Announcement, Candle, NewsArticle } from './types';
 
 /** A quick "what's happening today" view of one company. Read-only; no trading code involved. */
 
+export type ChartYahooInterval = '1m' | '5m' | '15m' | '30m' | '60m' | '1d' | '1wk' | '1mo';
+
 export interface QuoteSnapshot {
   ticker: string;
   name: string | null;
@@ -224,6 +226,14 @@ export class LiveUpdateSources implements UpdateSources {
 
   async candles(ticker: string, from: Date) {
     const res = await withRateLimitRetry(`chart ${ticker}`, () => this.yf.chart(ticker, { period1: from, interval: '1d' }));
+    return res.quotes
+      .filter((q) => q.open != null && q.high != null && q.low != null && q.close != null)
+      .map((q) => ({ time: new Date(q.date), open: q.open!, high: q.high!, low: q.low!, close: q.close!, volume: q.volume ?? 0 }));
+  }
+
+  /** Candles at any Yahoo interval (1m ... 1mo) from `from` until now, for the interactive chart. */
+  async chart(ticker: string, interval: ChartYahooInterval, from: Date): Promise<Candle[]> {
+    const res = await withRateLimitRetry(`chart ${ticker} ${interval}`, () => this.yf.chart(ticker, { period1: from, interval }));
     return res.quotes
       .filter((q) => q.open != null && q.high != null && q.low != null && q.close != null)
       .map((q) => ({ time: new Date(q.date), open: q.open!, high: q.high!, low: q.low!, close: q.close!, volume: q.volume ?? 0 }));

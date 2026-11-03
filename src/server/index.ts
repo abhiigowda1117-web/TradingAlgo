@@ -65,6 +65,7 @@ const app = createApp({
     env: process.env,
     quotes,
     researchRepo: new ResearchRepo(pool),
+    chart: (ticker, interval, from) => sources.chart(ticker, interval, from),
     research: async (query, peers) => {
       // Accept a company name or symbol; research needs an NSE listing.
       const { ticker, symbol } = await resolveCompany(query, sources);

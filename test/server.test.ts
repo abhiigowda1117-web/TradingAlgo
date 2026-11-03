@@ -470,3 +470,51 @@ describe('live quote for the research page', () => {
     await expect(Promise.resolve(none['/api/quote']!(new URLSearchParams({ symbol: 'NOPE' }), s))).rejects.toMatchObject({ status: 404 });
   });
 });
+
+describe('chart candles API', () => {
+  const s = { userId: 1, username: 'owner', csrfToken: 'x', expiresAt: new Date() };
+  const rows = (n: number, stepMs: number, start = Date.parse('2026-11-03T03:45:00Z')) =>
+    Array.from({ length: n }, (_, i) => ({ time: new Date(start + i * stepMs), open: 100 + i, high: 101 + i, low: 99 + i, close: 100.5 + i, volume: 1000 + i }));
+
+  it('validates symbol, interval and range, and maps intervals to provider intervals', async () => {
+    const { f, dir } = engineFixture();
+    const calls: [string, string, number][] = [];
+    const now = new Date('2026-11-03T08:00:00Z');
+    const routes = apiRoutes({ files: f, backtestResult: join(dir, 'x.json'), tradingConfig: tradingCfg, env: {}, now: () => now, quotes: async () => [], chart: async (t, iv, from) => (calls.push([t, iv, Math.round((now.getTime() - from.getTime()) / 86_400_000)]), rows(10, 300_000)) });
+    const get = (q: Record<string, string>) => Promise.resolve(routes['/api/chart']!(new URLSearchParams(q), s));
+    const r = (await get({ symbol: 'tcs', interval: '5m', range: '5D' })) as { symbol: string; intraday: boolean; candles: { time: number }[]; dataNote: string };
+    expect(r).toMatchObject({ symbol: 'TCS', intraday: true });
+    expect(r.candles).toHaveLength(10);
+    expect(r.candles[0]!.time).toBe(Date.parse('2026-11-03T03:45:00Z') / 1000 + 19_800);
+    expect(r.dataNote).toMatch(/delayed by about 15 minutes; not real-time/);
+    await get({ symbol: 'TCS', interval: '1h', range: '1Y' });
+    await get({ symbol: 'TCS', interval: '1w', range: 'MAX' });
+    expect(calls).toEqual([['TCS.NS', '5m', 7], ['TCS.NS', '60m', 366], ['TCS.NS', '1wk', 10958]]);
+    for (const bad of [{ symbol: '../x', interval: '1d', range: '1Y' }, { symbol: 'TCS', interval: '2m', range: '1D' }, { symbol: 'TCS', interval: '1m', range: '1Y' }, { symbol: 'TCS', interval: '1mo', range: '1D' }]) {
+      await expect(get(bad)).rejects.toMatchObject({ status: 400 });
+    }
+  });
+
+  it('caches by symbol, interval and range, does not cache failures, and reports outages as 502', async () => {
+    const { f, dir } = engineFixture();
+    let n = 0;
+    let fail = true;
+    const routes = apiRoutes({ files: f, backtestResult: join(dir, 'x.json'), tradingConfig: tradingCfg, env: {}, quotes: async () => [], chart: async () => { n++; if (fail) throw new Error('Yahoo 429'); return rows(3, 86_400_000); } });
+    const get = () => Promise.resolve(routes['/api/chart']!(new URLSearchParams({ symbol: 'INFY', interval: '1d', range: '1Y' }), s));
+    await expect(get()).rejects.toMatchObject({ status: 502, message: expect.stringMatching(/Yahoo Finance \(Yahoo 429\)/) });
+    fail = false;
+    const ok = (await get()) as { candles: { time: string }[] };
+    expect(ok.candles.map((c) => c.time)).toEqual(['2026-11-03', '2026-11-04', '2026-11-05']);
+    await get();
+    expect(n).toBe(2);
+    const off = apiRoutes({ files: f, backtestResult: join(dir, 'x.json'), tradingConfig: tradingCfg, env: {}, quotes: async () => [] });
+    await expect(Promise.resolve(off['/api/chart']!(new URLSearchParams({ symbol: 'INFY' }), s))).rejects.toMatchObject({ status: 503 });
+  });
+});
+
+describe('chart and quote require sign-in', () => {
+  it('rejects anonymous chart and quote requests', async () => {
+    const { base } = await start();
+    for (const p of ['/api/chart?symbol=INFY&interval=1d&range=1Y', '/api/quote?symbol=INFY']) expect((await fetch(`${base}${p}`)).status).toBe(401);
+  });
+});

@@ -1,5 +1,6 @@
 import { loadWatchlist } from '../study/watchlist';
-import type { QuoteSnapshot } from '../research/companyUpdate';
+import type { ChartYahooInterval, QuoteSnapshot } from '../research/companyUpdate';
+import type { Candle } from '../research/types';
 import { LARGE_CAPS, marketMovers, marketOverview, sessionStatus, type MarketMovers, type MarketOverview } from '../research/market';
 import type { ResearchReport } from '../research/research';
 import type { ResearchRepo } from './db/repositories';
@@ -31,11 +32,55 @@ export interface RouteDeps {
   /** Runs company research for a name or NSE symbol (read-only; never touches trading). */
   research?: (query: string, peers: string[]) => Promise<ResearchReport>;
   researchRepo?: ResearchRepo;
+  /** Candles for the interactive chart (read-only market data). */
+  chart?: (ticker: string, interval: ChartYahooInterval, from: Date) => Promise<Candle[]>;
   now?: () => Date;
 }
 
 const COMPANY_QUERY = /^[A-Za-z0-9&.\- ]{1,60}$/;
 const PEER_SYMBOL = /^[A-Z0-9&-]{1,20}$/;
+
+/**
+ * Chart intervals and the ranges each allows. Yahoo limits intraday history: 1-minute candles for about
+ * 7 days, 5/15/30-minute for 60 days, hourly for 2 years.
+ */
+const CHART_INTERVALS: Record<string, { yahoo: ChartYahooInterval; intraday: boolean; ranges: string[] }> = {
+  '1m': { yahoo: '1m', intraday: true, ranges: ['1D', '5D'] },
+  '5m': { yahoo: '5m', intraday: true, ranges: ['1D', '5D', '1M'] },
+  '15m': { yahoo: '15m', intraday: true, ranges: ['1D', '5D', '1M'] },
+  '30m': { yahoo: '30m', intraday: true, ranges: ['5D', '1M'] },
+  '1h': { yahoo: '60m', intraday: true, ranges: ['1M', '3M', '6M', '1Y'] },
+  '1d': { yahoo: '1d', intraday: false, ranges: ['1M', '3M', '6M', '1Y', '3Y', '5Y', 'MAX'] },
+  '1w': { yahoo: '1wk', intraday: false, ranges: ['1Y', '3Y', '5Y', 'MAX'] },
+  '1mo': { yahoo: '1mo', intraday: false, ranges: ['5Y', 'MAX'] },
+};
+const RANGE_DAYS: Record<string, number> = { '1D': 6, '5D': 7, '1M': 31, '3M': 92, '6M': 183, '1Y': 366, '3Y': 1096, '5Y': 1827, MAX: 10958 };
+const IST_SECONDS = 19_800;
+
+export interface ChartCandle {
+  /** Intraday: Unix seconds shifted to IST (so the chart's axis reads IST). Daily and longer: YYYY-MM-DD. */
+  time: number | string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+/** Converts provider candles to chart candles: IST times, ascending, one candle per time; '1D' keeps the latest session. */
+export function toChartCandles(rows: Candle[], intraday: boolean, range: string): ChartCandle[] {
+  const byTime = new Map<number | string, ChartCandle>();
+  for (const r of rows) {
+    const time = intraday ? Math.floor(r.time.getTime() / 1000) + IST_SECONDS : new Date(r.time.getTime() + IST_SECONDS * 1000).toISOString().slice(0, 10);
+    byTime.set(time, { time, open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume }); // later rows win
+  }
+  let out = [...byTime.values()].sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
+  if (range === '1D' && intraday && out.length) {
+    const lastDay = Math.floor((out.at(-1)!.time as number) / 86_400);
+    out = out.filter((c) => Math.floor((c.time as number) / 86_400) === lastDay);
+  }
+  return out;
+}
 
 /** Phase 1 API: read-only views of the engine, market, watchlist, trades, backtest and settings. */
 export function apiRoutes(d: RouteDeps): ApiRoutes {
@@ -47,6 +92,7 @@ export function apiRoutes(d: RouteDeps): ApiRoutes {
   const movers = cached<MarketMovers>(60_000, () => marketMovers({ quotes: d.quotes }, { symbols: LARGE_CAPS, holidays: d.tradingConfig.engine.holidays, now: now() }));
   const paperCapital = Number(d.env.PAPER_CAPITAL ?? 500_000);
   const researchCache = new Map<string, { at: number; report: ResearchReport }>();
+  const chartCache = new Map<string, { at: number; p: Promise<ChartCandle[]> }>();
   const researchInflight = new Map<string, Promise<ResearchReport>>();
   const status = () => engineStatus(d.files, { now: now(), aliveWithinSeconds, mode, quotes: d.quotes, initialCash: Number.isFinite(paperCapital) && paperCapital > 0 ? paperCapital : undefined });
 
@@ -83,6 +129,38 @@ export function apiRoutes(d: RouteDeps): ApiRoutes {
       const row = rows.find((r) => r.ticker === `${symbol}.NS`);
       if (!row || row.price === null) throw new HttpError(404, `No price available for ${symbol} right now`);
       return { symbol, ...row, session: sessionStatus(now(), d.tradingConfig.engine.holidays), fetchedAt: now().toISOString(), dataNote: 'Yahoo Finance quote, delayed by about 15 minutes; not real-time.' };
+    },
+    '/api/chart': async (q) => {
+      if (!d.chart) throw new HttpError(503, 'Charts are not configured on this server');
+      const symbol = (q.get('symbol') ?? '').trim().toUpperCase();
+      if (!PEER_SYMBOL.test(symbol)) throw new HttpError(400, 'symbol must be an NSE symbol, e.g. RELIANCE');
+      const interval = q.get('interval') ?? '1d';
+      const spec = CHART_INTERVALS[interval];
+      if (!spec) throw new HttpError(400, `interval must be one of ${Object.keys(CHART_INTERVALS).join(', ')}`);
+      const range = (q.get('range') ?? spec.ranges[Math.min(1, spec.ranges.length - 1)]!).toUpperCase();
+      if (!spec.ranges.includes(range)) throw new HttpError(400, `Range ${range} is not available for ${interval} candles; choose ${spec.ranges.join(', ')}`);
+      const key = `${symbol}|${interval}|${range}`;
+      const ttl = spec.intraday ? 30_000 : 600_000;
+      let hit = chartCache.get(key);
+      if (!hit || Date.now() - hit.at > ttl) {
+        const from = new Date(now().getTime() - RANGE_DAYS[range]! * 86_400_000);
+        hit = { at: Date.now(), p: d.chart(`${symbol}.NS`, spec.yahoo, from).then((rows) => toChartCandles(rows, spec.intraday, range)) };
+        chartCache.set(key, hit);
+        if (chartCache.size > 300) chartCache.delete(chartCache.keys().next().value!);
+      }
+      let candles: ChartCandle[];
+      try {
+        candles = await hit.p;
+      } catch (e) {
+        chartCache.delete(key); // do not cache failures
+        throw new HttpError(502, `Chart data unavailable from Yahoo Finance (${(e as Error).message}). Try again shortly.`);
+      }
+      if (!candles.length) throw new HttpError(404, `No ${interval} price data for ${symbol} in this range`);
+      return {
+        symbol, interval, range, intraday: spec.intraday, ranges: spec.ranges, candles,
+        session: sessionStatus(now(), d.tradingConfig.engine.holidays), fetchedAt: now().toISOString(),
+        dataNote: 'Candles from Yahoo Finance, delayed by about 15 minutes; not real-time. Times are IST.',
+      };
     },
     '/api/watchlist': () => {
       const wl = loadWatchlist(d.files.watchlist);
