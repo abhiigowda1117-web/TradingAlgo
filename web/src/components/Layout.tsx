@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../lib/auth';
 import type { MarketMovers, MarketOverview } from '../lib/types';
 import { useApi } from '../lib/useApi';
@@ -52,6 +52,10 @@ export function Layout() {
   const { username, tradingMode, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const loc = useLocation();
+  const navigate = useNavigate();
+  // Back goes to the previous screen in this tab; if the page was opened directly, it goes to the Dashboard.
+  const goBack = () => (loc.key !== 'default' ? navigate(-1) : navigate('/'));
+  const showBack = loc.pathname !== '/' || loc.search !== '';
   const market = useApi<MarketOverview>('/api/market/overview', 120_000);
   const movers = useApi<MarketMovers>('/api/market/movers', 120_000);
   const pulse: Pulse = { market: market.data, movers: movers.data };
@@ -75,6 +79,12 @@ export function Layout() {
           <button className="btn-ghost lg:hidden" aria-label="Open menu" onClick={() => setOpen(true)}>
             <Icon name="menu" className="h-4 w-4" />
           </button>
+          {showBack && (
+            <button type="button" className="btn-ghost shrink-0 !px-2.5" onClick={goBack} aria-label="Go back" title="Go back">
+              <span aria-hidden="true" className="text-base leading-none">←</span>
+              <span className="hidden sm:inline">Back</span>
+            </button>
+          )}
           <span className="min-w-0 truncate text-sm font-medium text-slate-300">{title}</span>
           <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
             <Badge color={tradingMode === 'live' ? 'red' : 'blue'}>{tradingMode === 'live' ? 'LIVE MODE CONFIGURED' : 'PAPER'}</Badge>

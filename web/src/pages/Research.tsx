@@ -323,8 +323,18 @@ export function Research() {
   const [won, setWon] = useState(false);
   const recent = useApi<SavedResearch[]>('/api/research/recent');
 
+  // The address bar (?q=...&peers=...) is the source of truth: every new search adds a history entry, so
+  // the browser's Back button (and the ← Back button in the header) returns to the previous company.
+  const qParam = params.get('q') ?? '';
+  const pParam = params.get('peers') ?? '';
+  const lastRun = useRef('');
+  const latest = useRef(0);
+  const wantFresh = useRef(false);
+
   async function run(q: string, p: string, refresh: boolean) {
     if (!q.trim()) return;
+    const token = ++latest.current;
+    lastRun.current = `${q}|${p}`;
     setBusy(true);
     setError(null);
     const qs = new URLSearchParams({ q: q.trim() });
@@ -332,33 +342,62 @@ export function Research() {
     if (refresh) qs.set('refresh', '1');
     try {
       const r = await api<ResearchReport>(`/api/research?${qs}`);
-      // Finale: the bull wins, then the report opens (skipped when the user prefers reduced motion).
-      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      if (token !== latest.current) return; // a newer search started; drop this result
+      // Finale: the bull wins, then the report opens. Skipped for cached reports (e.g. going Back) and
+      // when the user prefers reduced motion.
+      if (!r.cached && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         setWon(true);
         await new Promise((res) => setTimeout(res, 1700));
+        if (token !== latest.current) return;
       }
       setReport(r);
-      setParams(Object.fromEntries([...qs].filter(([k]) => k !== 'refresh')), { replace: true });
       void recent.reload();
     } catch (e) {
+      if (token !== latest.current) return;
       const msg = (e as Error).message;
       // A bare "Not found" means the running server predates this page: it has no research route yet.
       setError(msg === 'Not found' ? 'The server is running an older version without Company Research. Stop it (Ctrl + C) and start it again with: npm.cmd run server' : msg);
     } finally {
-      setBusy(false);
-      setWon(false);
+      if (token === latest.current) {
+        setBusy(false);
+        setWon(false);
+      }
     }
   }
 
+  // Run whenever the address changes: first load, a new search, a Recent chip, or Back/Forward.
   useEffect(() => {
-    if (params.get('q')) void run(params.get('q')!, params.get('peers') ?? '', false);
-    // Only on first load: later searches update the URL themselves.
+    if (!qParam) {
+      latest.current++;
+      lastRun.current = '';
+      setReport(null);
+      setError(null);
+      setBusy(false);
+      return;
+    }
+    if (`${qParam}|${pParam}` === lastRun.current && !wantFresh.current) return;
+    setQuery(qParam);
+    setPeers(pParam);
+    const refresh = wantFresh.current;
+    wantFresh.current = false;
+    void run(qParam, pParam, refresh);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [qParam, pParam]);
+
+  const open = (q: string, p: string, refresh: boolean) => {
+    const next = { q: q.trim(), p: p.trim().toUpperCase() };
+    if (!next.q) return;
+    if (next.q === qParam && next.p === pParam) {
+      void run(next.q, next.p, refresh); // same company again (e.g. with Fresh data)
+      return;
+    }
+    wantFresh.current = refresh;
+    setParams(next.p ? { q: next.q, peers: next.p } : { q: next.q }); // pushes a history entry
+  };
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    void run(query, peers, fresh);
+    open(query, peers, fresh);
   };
 
   return (
@@ -381,7 +420,7 @@ export function Research() {
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
             <span className="text-slate-500">Recent:</span>
             {recent.data.map((s) => (
-              <button key={s.symbol} type="button" className="rounded-full border border-ink-700 px-2.5 py-1 text-slate-300 hover:bg-ink-800" title={`${s.name ?? s.symbol} · ${istTime(s.generatedAt)}`} onClick={() => { setQuery(s.symbol); void run(s.symbol, '', false); }}>
+              <button key={s.symbol} type="button" className="rounded-full border border-ink-700 px-2.5 py-1 text-slate-300 hover:bg-ink-800" title={`${s.name ?? s.symbol} · ${istTime(s.generatedAt)}`} onClick={() => open(s.symbol, '', false)}>
                 {s.symbol}
               </button>
             ))}

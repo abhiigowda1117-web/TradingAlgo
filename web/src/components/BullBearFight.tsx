@@ -24,13 +24,18 @@ export function BullBearFight({ finished = false, label, size = 'lg' }: { finish
 export function BullBearArena() {
   return (
     <section className="arena card overflow-hidden !p-0" aria-label="Bull and bear animation">
-      <div className="arena-runner arena-bull">
-        <img src="/bull-solo.png" alt="" draggable={false} />
-      </div>
+      <div className="arena-floor" />
       <div className="arena-runner arena-bear">
+        <span className="arena-shadow" />
         <img src="/bear-solo.png" alt="" draggable={false} />
       </div>
-      <div className="arena-ground" />
+      <div className="arena-runner arena-bull">
+        <span className="arena-shadow" />
+        <img src="/bull-solo.png" alt="" draggable={false} />
+      </div>
+      <span className="arena-dust d1" />
+      <span className="arena-dust d2" />
+      <span className="arena-dust d3" />
     </section>
   );
 }

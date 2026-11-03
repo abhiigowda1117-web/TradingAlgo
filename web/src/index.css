@@ -104,17 +104,25 @@
    the bear drops into the back lane (smaller and darker, further away) while the bull passes in front.
    They land in each other's places, turn around, and do it again.
    --half is about half an animal's width; --lane stays 0 (no jumping), the depth effect does the passing. */
-.arena { position: relative; height: 4rem; --half: 24px; --lane: 0px; background-color: #000; animation: arena-shake 10s linear infinite; }
+.arena { position: relative; height: 4.75rem; --half: 24px; --lane: 0px; --feet: 18px; background: linear-gradient(180deg, #000 0%, #02040a 70%, #050914 100%); animation: arena-shake 10s linear infinite; }
 .arena-runner { position: absolute; inset: 0; pointer-events: none; }
-.arena-runner img { position: absolute; top: 50%; left: 0; height: 2.35rem; width: auto; transform: translate(-50%, -50%); user-select: none; }
-.arena-ground { position: absolute; left: 4%; right: 4%; top: 50%; height: 1px; background: linear-gradient(90deg, transparent, rgba(47, 125, 255, 0.35), rgba(0, 194, 255, 0.35), rgba(47, 125, 255, 0.35), transparent); }
+/* Feet stand on the floor line; scaling and turning happen around the feet. */
+.arena-runner img { position: absolute; bottom: var(--feet); left: 0; height: 2.35rem; width: auto; transform: translate(-50%, 0); transform-origin: 50% 100%; user-select: none; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.8)); }
+.arena-floor { position: absolute; left: 0; right: 0; bottom: 0; height: var(--feet); background: linear-gradient(180deg, rgba(40, 80, 170, 0.32), rgba(12, 22, 52, 0.18) 60%, transparent); border-top: 1px solid rgba(0, 194, 255, 0.35); box-shadow: 0 -1px 12px rgba(0, 194, 255, 0.12); }
+.arena-shadow { position: absolute; bottom: calc(var(--feet) - 4px); left: 0; width: 2.3rem; height: 8px; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.5) 45%, transparent 72%); }
+.arena-dust { position: absolute; left: 50%; bottom: calc(var(--feet) - 3px); width: 14px; height: 10px; margin-left: -7px; border-radius: 50%; background: radial-gradient(circle, rgba(190, 200, 220, 0.75), rgba(190, 200, 220, 0) 70%); opacity: 0; pointer-events: none; }
+.arena-dust.d1 { animation: arena-dust-l 10s ease-out infinite; }
+.arena-dust.d2 { animation: arena-dust-r 10s ease-out infinite; }
+.arena-dust.d3 { animation: arena-dust-u 10s ease-out infinite; }
 .arena-bull { z-index: 2; animation: arena-bull 10s ease-in-out infinite; }
 .arena-bear { z-index: 1; animation: arena-bear 10s ease-in-out infinite; }
-.arena-bull img { animation: arena-turn 10s linear infinite; }
-.arena-bear img { animation: arena-bear-depth 10s linear infinite; }
+.arena-bull img { animation: arena-turn 10s linear infinite, arena-gait 10s linear infinite; }
+.arena-bear img { animation: arena-bear-depth 10s linear infinite, arena-gait 10s linear infinite; }
+.arena-bear .arena-shadow { animation: arena-bear-shadow 10s linear infinite; }
 @media (max-width: 640px) {
-  .arena { height: 3.5rem; --half: 19px; --lane: 0px; }
+  .arena { height: 4rem; --half: 19px; --lane: 0px; --feet: 14px; }
   .arena-runner img { height: 1.85rem; }
+  .arena-shadow { width: 1.8rem; height: 6px; }
 }
 @keyframes arena-bull {
   0%, 6% { transform: translate(25%, 0); }
@@ -144,20 +152,155 @@
 }
 /* Turn around after each swap so they always face each other before charging. */
 @keyframes arena-turn {
-  0%, 46% { transform: translate(-50%, -50%) scaleX(1); }
-  49%, 96% { transform: translate(-50%, -50%) scaleX(-1); }
-  99%, 100% { transform: translate(-50%, -50%) scaleX(1); }
+  0%, 46% { transform: translate(-50%, 0) scaleX(1); }
+  49%, 96% { transform: translate(-50%, 0) scaleX(-1); }
+  99%, 100% { transform: translate(-50%, 0) scaleX(1); }
 }
 /* The bear turns like the bull, and while they cross it steps into the back lane: smaller, a little higher
    (further away) and darker, so the bull visibly runs past in front instead of jumping over it. */
 @keyframes arena-bear-depth {
-  0%, 24% { transform: translate(-50%, -50%) scale(1, 1); filter: brightness(1); }
-  27%, 35% { transform: translate(-50%, calc(-50% - 5px)) scale(0.78, 0.78); filter: brightness(0.55); }
-  38%, 46% { transform: translate(-50%, -50%) scale(1, 1); filter: brightness(1); }
-  49%, 74% { transform: translate(-50%, -50%) scale(-1, 1); filter: brightness(1); }
-  77%, 85% { transform: translate(-50%, calc(-50% - 5px)) scale(-0.78, 0.78); filter: brightness(0.55); }
-  88%, 96% { transform: translate(-50%, -50%) scale(-1, 1); filter: brightness(1); }
-  99%, 100% { transform: translate(-50%, -50%) scale(1, 1); filter: brightness(1); }
+  0%, 24% { transform: translate(-50%, 0) scale(1, 1); filter: brightness(1); }
+  27%, 35% { transform: translate(-50%, -5px) scale(0.78, 0.78); filter: brightness(0.55); }
+  38%, 46% { transform: translate(-50%, 0) scale(1, 1); filter: brightness(1); }
+  49%, 74% { transform: translate(-50%, 0) scale(-1, 1); filter: brightness(1); }
+  77%, 85% { transform: translate(-50%, -5px) scale(-0.78, 0.78); filter: brightness(0.55); }
+  88%, 96% { transform: translate(-50%, 0) scale(-1, 1); filter: brightness(1); }
+  99%, 100% { transform: translate(-50%, 0) scale(1, 1); filter: brightness(1); }
+}
+/* The bear's shadow follows it into the back lane. */
+@keyframes arena-bear-shadow {
+  0%, 24%, 38%, 74%, 88%, 100% { transform: translate(-50%, 0) scale(1); opacity: 1; }
+  27%, 35%, 77%, 85% { transform: translate(-50%, -5px) scale(0.75); opacity: 0.55; }
+}
+@keyframes arena-gait {
+  0% { translate: 0 0.00px; rotate: 0.00deg; }
+  6.0% { translate: 0 0.00px; rotate: 0.00deg; }
+  6.625% { translate: 0 -3.00px; rotate: -3.00deg; }
+  7.25% { translate: 0 0.00px; rotate: 0.00deg; }
+  7.875% { translate: 0 -2.00px; rotate: 3.00deg; }
+  8.5% { translate: 0 0.00px; rotate: 0.00deg; }
+  9.125% { translate: 0 -3.00px; rotate: -3.00deg; }
+  9.75% { translate: 0 0.00px; rotate: 0.00deg; }
+  10.375% { translate: 0 -2.00px; rotate: 3.00deg; }
+  11.0% { translate: 0 0.00px; rotate: 0.00deg; }
+  11.625% { translate: 0 -3.00px; rotate: -3.00deg; }
+  12.25% { translate: 0 0.00px; rotate: 0.00deg; }
+  12.875% { translate: 0 -2.00px; rotate: 3.00deg; }
+  13.5% { translate: 0 0.00px; rotate: 0.00deg; }
+  14.125% { translate: 0 -3.00px; rotate: -3.00deg; }
+  14.75% { translate: 0 0.00px; rotate: 0.00deg; }
+  15.375% { translate: 0 -2.00px; rotate: 3.00deg; }
+  16% { translate: 0 0.00px; rotate: 0.00deg; }
+  21.0% { translate: 0 0.00px; rotate: 0.00deg; }
+  21.75% { translate: 0 -1.50px; rotate: -1.50deg; }
+  22.5% { translate: 0 0.00px; rotate: 0.00deg; }
+  23.25% { translate: 0 -1.00px; rotate: 1.50deg; }
+  24% { translate: 0 0.00px; rotate: 0.00deg; }
+  26.0% { translate: 0 0.00px; rotate: 0.00deg; }
+  26.65% { translate: 0 -3.00px; rotate: -3.00deg; }
+  27.3% { translate: 0 0.00px; rotate: 0.00deg; }
+  27.95% { translate: 0 -2.00px; rotate: 3.00deg; }
+  28.6% { translate: 0 0.00px; rotate: 0.00deg; }
+  29.25% { translate: 0 -3.00px; rotate: -3.00deg; }
+  29.9% { translate: 0 0.00px; rotate: 0.00deg; }
+  30.55% { translate: 0 -2.00px; rotate: 3.00deg; }
+  31.2% { translate: 0 0.00px; rotate: 0.00deg; }
+  31.85% { translate: 0 -3.00px; rotate: -3.00deg; }
+  32.5% { translate: 0 0.00px; rotate: 0.00deg; }
+  33.15% { translate: 0 -2.00px; rotate: 3.00deg; }
+  33.8% { translate: 0 0.00px; rotate: 0.00deg; }
+  34.45% { translate: 0 -3.00px; rotate: -3.00deg; }
+  35.1% { translate: 0 0.00px; rotate: 0.00deg; }
+  35.75% { translate: 0 -2.00px; rotate: 3.00deg; }
+  36.4% { translate: 0 0.00px; rotate: 0.00deg; }
+  37.05% { translate: 0 -3.00px; rotate: -3.00deg; }
+  37.7% { translate: 0 0.00px; rotate: 0.00deg; }
+  38.35% { translate: 0 -2.00px; rotate: 3.00deg; }
+  39% { translate: 0 0.00px; rotate: 0.00deg; }
+  39.583% { translate: 0 -2.10px; rotate: -2.10deg; }
+  40.167% { translate: 0 0.00px; rotate: 0.00deg; }
+  40.75% { translate: 0 -1.40px; rotate: 2.10deg; }
+  41.333% { translate: 0 0.00px; rotate: 0.00deg; }
+  41.917% { translate: 0 -2.10px; rotate: -2.10deg; }
+  42.5% { translate: 0 0.00px; rotate: 0.00deg; }
+  43.083% { translate: 0 -1.40px; rotate: 2.10deg; }
+  43.667% { translate: 0 0.00px; rotate: 0.00deg; }
+  44.25% { translate: 0 -2.10px; rotate: -2.10deg; }
+  44.833% { translate: 0 0.00px; rotate: 0.00deg; }
+  45.417% { translate: 0 -1.40px; rotate: 2.10deg; }
+  46% { translate: 0 0.00px; rotate: 0.00deg; }
+  56.0% { translate: 0 0.00px; rotate: 0.00deg; }
+  56.625% { translate: 0 -3.00px; rotate: -3.00deg; }
+  57.25% { translate: 0 0.00px; rotate: 0.00deg; }
+  57.875% { translate: 0 -2.00px; rotate: 3.00deg; }
+  58.5% { translate: 0 0.00px; rotate: 0.00deg; }
+  59.125% { translate: 0 -3.00px; rotate: -3.00deg; }
+  59.75% { translate: 0 0.00px; rotate: 0.00deg; }
+  60.375% { translate: 0 -2.00px; rotate: 3.00deg; }
+  61.0% { translate: 0 0.00px; rotate: 0.00deg; }
+  61.625% { translate: 0 -3.00px; rotate: -3.00deg; }
+  62.25% { translate: 0 0.00px; rotate: 0.00deg; }
+  62.875% { translate: 0 -2.00px; rotate: 3.00deg; }
+  63.5% { translate: 0 0.00px; rotate: 0.00deg; }
+  64.125% { translate: 0 -3.00px; rotate: -3.00deg; }
+  64.75% { translate: 0 0.00px; rotate: 0.00deg; }
+  65.375% { translate: 0 -2.00px; rotate: 3.00deg; }
+  66% { translate: 0 0.00px; rotate: 0.00deg; }
+  71.0% { translate: 0 0.00px; rotate: 0.00deg; }
+  71.75% { translate: 0 -1.50px; rotate: -1.50deg; }
+  72.5% { translate: 0 0.00px; rotate: 0.00deg; }
+  73.25% { translate: 0 -1.00px; rotate: 1.50deg; }
+  74% { translate: 0 0.00px; rotate: 0.00deg; }
+  76.0% { translate: 0 0.00px; rotate: 0.00deg; }
+  76.65% { translate: 0 -3.00px; rotate: -3.00deg; }
+  77.3% { translate: 0 0.00px; rotate: 0.00deg; }
+  77.95% { translate: 0 -2.00px; rotate: 3.00deg; }
+  78.6% { translate: 0 0.00px; rotate: 0.00deg; }
+  79.25% { translate: 0 -3.00px; rotate: -3.00deg; }
+  79.9% { translate: 0 0.00px; rotate: 0.00deg; }
+  80.55% { translate: 0 -2.00px; rotate: 3.00deg; }
+  81.2% { translate: 0 0.00px; rotate: 0.00deg; }
+  81.85% { translate: 0 -3.00px; rotate: -3.00deg; }
+  82.5% { translate: 0 0.00px; rotate: 0.00deg; }
+  83.15% { translate: 0 -2.00px; rotate: 3.00deg; }
+  83.8% { translate: 0 0.00px; rotate: 0.00deg; }
+  84.45% { translate: 0 -3.00px; rotate: -3.00deg; }
+  85.1% { translate: 0 0.00px; rotate: 0.00deg; }
+  85.75% { translate: 0 -2.00px; rotate: 3.00deg; }
+  86.4% { translate: 0 0.00px; rotate: 0.00deg; }
+  87.05% { translate: 0 -3.00px; rotate: -3.00deg; }
+  87.7% { translate: 0 0.00px; rotate: 0.00deg; }
+  88.35% { translate: 0 -2.00px; rotate: 3.00deg; }
+  89% { translate: 0 0.00px; rotate: 0.00deg; }
+  89.583% { translate: 0 -2.10px; rotate: -2.10deg; }
+  90.167% { translate: 0 0.00px; rotate: 0.00deg; }
+  90.75% { translate: 0 -1.40px; rotate: 2.10deg; }
+  91.333% { translate: 0 0.00px; rotate: 0.00deg; }
+  91.917% { translate: 0 -2.10px; rotate: -2.10deg; }
+  92.5% { translate: 0 0.00px; rotate: 0.00deg; }
+  93.083% { translate: 0 -1.40px; rotate: 2.10deg; }
+  93.667% { translate: 0 0.00px; rotate: 0.00deg; }
+  94.25% { translate: 0 -2.10px; rotate: -2.10deg; }
+  94.833% { translate: 0 0.00px; rotate: 0.00deg; }
+  95.417% { translate: 0 -1.40px; rotate: 2.10deg; }
+  96% { translate: 0 0.00px; rotate: 0.00deg; }
+  100% { translate: 0 0.00px; rotate: 0.00deg; }
+}
+/* Dust kicked up when they collide (at the centre, 1.6 s and 6.6 s into the cycle). */
+@keyframes arena-dust-l {
+  0%, 15.8%, 50%, 65.8%, 100% { opacity: 0; transform: translate(0, 0) scale(0.3); }
+  16.3%, 66.3% { opacity: 0.8; transform: translate(-4px, 0) scale(0.6); }
+  19.5%, 69.5% { opacity: 0; transform: translate(-22px, -6px) scale(1.6); }
+}
+@keyframes arena-dust-r {
+  0%, 15.8%, 50%, 65.8%, 100% { opacity: 0; transform: translate(0, 0) scale(0.3); }
+  16.3%, 66.3% { opacity: 0.8; transform: translate(4px, 0) scale(0.6); }
+  19.5%, 69.5% { opacity: 0; transform: translate(22px, -6px) scale(1.6); }
+}
+@keyframes arena-dust-u {
+  0%, 15.8%, 50%, 65.8%, 100% { opacity: 0; transform: translate(0, 0) scale(0.3); }
+  16.5%, 66.5% { opacity: 0.6; transform: translate(0, -6px) scale(0.7); }
+  20%, 70% { opacity: 0; transform: translate(0, -16px) scale(1.8); }
 }
 @keyframes arena-shake {
   0%, 15.5%, 18%, 65.5%, 68%, 100% { transform: translate(0, 0); }
@@ -175,7 +318,8 @@
   .fight-bear { transform: translateX(12px); }
   .is-won .fight-bear { opacity: 0.25; }
   .arena, .arena-bull, .arena-bear, .arena-bull img, .arena-bear img { animation: none; }
-  .arena-bull img, .arena-bear img { transform: translate(-50%, -50%); }
+  .arena-bull img, .arena-bear img { transform: translate(-50%, 0); }
+  .arena-bear .arena-shadow, .arena-dust { animation: none; }
   .arena-bull { transform: translateX(25%); }
   .arena-bear { transform: translateX(75%); }
 }
