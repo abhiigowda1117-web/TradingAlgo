@@ -99,37 +99,60 @@
   100% { transform: translate(320px, 40px) rotate(160deg); opacity: 0; }
 }
 
-/* Dashboard arena: each runner spans the full width, so translateX(%) is a share of the arena width. */
-.arena { position: relative; height: 10rem; --half: 78px; background-color: #000; }
+/* Dashboard arena: each runner spans the full width, so translateX(%) is a share of the arena width.
+   One 10 s cycle: charge, clash, swap places (the bull leaps over the bear), turn around, charge, clash,
+   swap back, turn around. --half is about half an animal's width; --leap is the height of the bull's jump. */
+.arena { position: relative; height: 11.5rem; --half: 70px; --leap: 48px; background-color: #000; animation: arena-shake 10s linear infinite; }
 .arena-runner { position: absolute; inset: 0; pointer-events: none; }
-.arena-runner img { position: absolute; bottom: 16px; left: 0; height: 7.5rem; width: auto; transform: translateX(-50%); user-select: none; }
-.arena-ground { position: absolute; left: 4%; right: 4%; bottom: 12px; height: 2px; border-radius: 9999px; background: linear-gradient(90deg, transparent, #2f7dff, #00c2ff, #2f7dff, transparent); box-shadow: 0 0 12px rgba(0, 194, 255, 0.45); }
-.arena-bull { animation: arena-bull 7s ease-in-out infinite; }
-.arena-bear { animation: arena-bear 7s ease-in-out infinite; }
-.arena { animation: arena-shake 7s linear infinite; }
+.arena-runner img { position: absolute; bottom: 16px; left: 0; height: 7rem; width: auto; transform: translateX(-50%); user-select: none; }
+.arena-ground { position: absolute; left: 4%; right: 4%; bottom: 14px; height: 2px; border-radius: 9999px; background: linear-gradient(90deg, transparent, #2f7dff, #00c2ff, #2f7dff, transparent); box-shadow: 0 0 12px rgba(0, 194, 255, 0.45); }
+.arena-bull { z-index: 2; animation: arena-bull 10s ease-in-out infinite; }
+.arena-bear { z-index: 1; animation: arena-bear 10s ease-in-out infinite; }
+.arena-bull img, .arena-bear img { animation: arena-turn 10s linear infinite; }
 @media (max-width: 640px) {
-  .arena { height: 7rem; --half: 46px; }
-  .arena-runner img { height: 4.5rem; }
+  .arena { height: 8rem; --half: 42px; --leap: 30px; }
+  .arena-runner img { height: 4.25rem; }
 }
 @keyframes arena-bull {
-  0%, 8% { transform: translateX(25%); }
-  28% { transform: translateX(calc(50% - var(--half) - 14px)); }
-  33% { transform: translateX(calc(50% - var(--half) + 4px)); }
-  50%, 58% { transform: translateX(calc(var(--half) + 8px)); }
-  84%, 100% { transform: translateX(25%); }
+  0%, 6% { transform: translate(25%, 0); }
+  18% { transform: translate(calc(50% - var(--half)), 0); }
+  20% { transform: translate(calc(50% - var(--half) - 10px), 0); }
+  26% { transform: translate(50%, calc(-1 * var(--leap))); }
+  32% { transform: translate(calc(50% + var(--half) + 20px), 0); }
+  44%, 56% { transform: translate(75%, 0); }
+  68% { transform: translate(calc(50% + var(--half)), 0); }
+  70% { transform: translate(calc(50% + var(--half) + 10px), 0); }
+  76% { transform: translate(50%, calc(-1 * var(--leap))); }
+  82% { transform: translate(calc(50% - var(--half) - 20px), 0); }
+  94%, 100% { transform: translate(25%, 0); }
 }
 @keyframes arena-bear {
-  0%, 8% { transform: translateX(75%); }
-  28% { transform: translateX(calc(50% + var(--half) + 14px)); }
-  33% { transform: translateX(calc(50% + var(--half) - 4px)); }
-  50%, 58% { transform: translateX(calc(100% - var(--half) - 8px)); }
-  84%, 100% { transform: translateX(75%); }
+  0%, 6% { transform: translate(75%, 0); }
+  18% { transform: translate(calc(50% + var(--half)), 0); }
+  20% { transform: translate(calc(50% + var(--half) + 10px), 0); }
+  26% { transform: translate(50%, 0); }
+  32% { transform: translate(calc(50% - var(--half) - 20px), 0); }
+  44%, 56% { transform: translate(25%, 0); }
+  68% { transform: translate(calc(50% - var(--half)), 0); }
+  70% { transform: translate(calc(50% - var(--half) - 10px), 0); }
+  76% { transform: translate(50%, 0); }
+  82% { transform: translate(calc(50% + var(--half) + 20px), 0); }
+  94%, 100% { transform: translate(75%, 0); }
+}
+/* Turn around after each swap so they always face each other before charging. */
+@keyframes arena-turn {
+  0%, 45% { transform: translateX(-50%) scaleX(1); }
+  48%, 95% { transform: translateX(-50%) scaleX(-1); }
+  98%, 100% { transform: translateX(-50%) scaleX(1); }
 }
 @keyframes arena-shake {
-  0%, 32%, 37%, 100% { transform: translate(0, 0); }
-  33% { transform: translate(3px, -1px); }
-  34% { transform: translate(-3px, 1px); }
-  35.5% { transform: translate(2px, 0); }
+  0%, 17.5%, 20%, 67.5%, 70%, 100% { transform: translate(0, 0); }
+  18% { transform: translate(3px, -1px); }
+  18.6% { transform: translate(-3px, 1px); }
+  19.3% { transform: translate(2px, 0); }
+  68% { transform: translate(-3px, -1px); }
+  68.6% { transform: translate(3px, 1px); }
+  69.3% { transform: translate(-2px, 0); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -137,7 +160,7 @@
   .fight-bull { transform: translateX(-12px); }
   .fight-bear { transform: translateX(12px); }
   .is-won .fight-bear { opacity: 0.25; }
-  .arena, .arena-bull, .arena-bear { animation: none; }
+  .arena, .arena-bull, .arena-bear, .arena-bull img, .arena-bear img { animation: none; }
   .arena-bull { transform: translateX(25%); }
   .arena-bear { transform: translateX(75%); }
 }

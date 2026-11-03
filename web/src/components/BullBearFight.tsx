@@ -18,8 +18,8 @@ export function BullBearFight({ finished = false, label, size = 'lg' }: { finish
 }
 
 /**
- * Dashboard strip: the bull and bear (animals only) charge from their places, clash in the
- * middle, get knocked back to opposite edges, then walk back to their places. Repeats.
+ * Dashboard strip: the bull and bear (animals only) charge, clash in the middle and swap places
+ * (the bull leaps over the bear), turn around, charge and clash again, and swap back. Repeats.
  */
 export function BullBearArena() {
   return (
