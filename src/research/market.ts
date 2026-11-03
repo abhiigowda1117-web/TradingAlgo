@@ -55,6 +55,69 @@ export interface MarketOverview {
   dataNote: string;
 }
 
+/**
+ * Large NSE companies scanned for the movers board. A fixed list of about 50 well-known large caps; it is
+ * close to, but not guaranteed to match, the current NIFTY 50 (index members change twice a year).
+ * Symbols Yahoo cannot price are skipped and counted as unavailable.
+ */
+export const LARGE_CAPS = [
+  'RELIANCE', 'TCS', 'HDFCBANK', 'ICICIBANK', 'INFY', 'BHARTIARTL', 'ITC', 'SBIN', 'LT', 'HINDUNILVR',
+  'KOTAKBANK', 'AXISBANK', 'BAJFINANCE', 'MARUTI', 'SUNPHARMA', 'HCLTECH', 'M&M', 'TITAN', 'ASIANPAINT', 'ULTRACEMCO',
+  'NTPC', 'POWERGRID', 'TATASTEEL', 'NESTLEIND', 'WIPRO', 'ONGC', 'ADANIPORTS', 'COALINDIA', 'JSWSTEEL', 'BAJAJFINSV',
+  'TECHM', 'HINDALCO', 'GRASIM', 'CIPLA', 'DRREDDY', 'EICHERMOT', 'HEROMOTOCO', 'BAJAJ-AUTO', 'APOLLOHOSP', 'TATACONSUM',
+  'TRENT', 'BEL', 'ADANIENT', 'HDFCLIFE', 'SBILIFE', 'SHRIRAMFIN', 'JIOFIN', 'ETERNAL', 'INDIGO', 'MAXHEALTH',
+];
+
+export interface MoverRow {
+  symbol: string;
+  name: string | null;
+  price: number;
+  change: number | null;
+  changePct: number;
+}
+
+export interface MarketMovers {
+  generatedAt: string;
+  session: MarketOverview['session'];
+  /** Biggest percentage rises today, largest first. Only stocks that are up. */
+  gainers: MoverRow[];
+  /** Biggest percentage falls today, largest fall first. Only stocks that are down. */
+  losers: MoverRow[];
+  /** Every priced stock, alphabetical, for the scrolling ticker tape. */
+  tape: MoverRow[];
+  scanned: number;
+  unavailable: number;
+  /** Latest quote time among the stocks (ISO), or null. */
+  quoteTime: string | null;
+  dataNote: string;
+}
+
+/** Top gainers and losers among a list of NSE symbols, from one batch of delayed quotes. Describes; does not predict. */
+export async function marketMovers(src: MarketSources, o: { symbols: string[]; holidays: string[]; now?: Date; count?: number }): Promise<MarketMovers> {
+  const now = o.now ?? new Date();
+  const count = o.count ?? 8;
+  const quotes = await src.quotes(o.symbols.map((s) => `${s}.NS`));
+  const byTicker = new Map(quotes.map((q) => [q.ticker, q]));
+  const rows: MoverRow[] = [];
+  for (const s of o.symbols) {
+    const q = byTicker.get(`${s}.NS`);
+    if (!q || q.price === null || q.changePct === null || !Number.isFinite(q.price) || !Number.isFinite(q.changePct)) continue;
+    rows.push({ symbol: s, name: q.name, price: q.price, change: q.change, changePct: q.changePct });
+  }
+  const times = quotes.map((q) => q.time).filter((t): t is string => typeof t === 'string').sort();
+  return {
+    generatedAt: now.toISOString(),
+    session: sessionStatus(now, o.holidays),
+    gainers: rows.filter((r) => r.changePct > 0).sort((a, b) => b.changePct - a.changePct || a.symbol.localeCompare(b.symbol)).slice(0, count),
+    losers: rows.filter((r) => r.changePct < 0).sort((a, b) => a.changePct - b.changePct || a.symbol.localeCompare(b.symbol)).slice(0, count),
+    tape: [...rows].sort((a, b) => a.symbol.localeCompare(b.symbol)),
+    scanned: o.symbols.length,
+    unavailable: o.symbols.length - rows.length,
+    quoteTime: times.at(-1) ?? null,
+    dataNote: `Scans ${o.symbols.length} large NSE companies (close to the NIFTY 50 list). Quotes from Yahoo Finance, delayed by about 15 minutes; not real-time.`,
+  };
+}
+
 export function sessionStatus(now: Date, holidays: string[]): MarketOverview['session'] {
   const t = istParts(now);
   const open = isNseOpen(now, holidays);

@@ -19,3 +19,32 @@
   .table td { @apply border-b border-ink-800 px-2 py-2 align-top; }
   .num { @apply text-right tabular-nums; }
 }
+
+/* LED board: the dot-matrix look of an exchange ticker wall. */
+@layer components {
+  .led-board {
+    @apply rounded-xl border border-black p-3 sm:p-4;
+    background-color: #050505;
+    background-image: radial-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1.2px);
+    background-size: 4px 4px;
+    box-shadow: inset 0 0 0 1px #1c1c1c, inset 0 0 30px rgba(0, 0, 0, 0.9);
+  }
+  .led { font-family: theme('fontFamily.led'); font-weight: 800; letter-spacing: 0.04em; font-variant-numeric: tabular-nums; }
+  .led-amber { color: #ffb000; text-shadow: 0 0 6px rgba(255, 176, 0, 0.55); }
+  .led-green { color: #39ff7a; text-shadow: 0 0 6px rgba(57, 255, 122, 0.55); }
+  .led-red { color: #ff3b55; text-shadow: 0 0 6px rgba(255, 59, 85, 0.55); }
+  .led-dim { color: #8a8a8a; }
+  .led-row { @apply grid cursor-pointer grid-cols-[1.3rem_minmax(0,1fr)_auto_auto] items-baseline gap-x-2 sm:grid-cols-[1.6rem_minmax(0,1fr)_auto_auto] sm:gap-x-3 border-b border-white/5 px-1 py-1.5 transition-colors hover:bg-white/5; }
+}
+
+.ticker-track { display: flex; width: max-content; animation: ticker linear infinite; }
+.ticker-wrap:hover .ticker-track { animation-play-state: paused; }
+@keyframes ticker { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.led-flash { animation: led-flash 1.2s ease-out; }
+@keyframes led-flash { 0% { background-color: rgba(255, 255, 255, 0.18); } 100% { background-color: transparent; } }
+.led-blink { animation: led-blink 1.6s steps(1) infinite; }
+@keyframes led-blink { 50% { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track { animation: none; flex-wrap: wrap; width: auto; }
+  .led-flash, .led-blink { animation: none; }
+}

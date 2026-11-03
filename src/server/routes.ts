@@ -1,6 +1,6 @@
 import { loadWatchlist } from '../study/watchlist';
 import type { QuoteSnapshot } from '../research/companyUpdate';
-import { marketOverview, type MarketOverview } from '../research/market';
+import { LARGE_CAPS, marketMovers, marketOverview, type MarketMovers, type MarketOverview } from '../research/market';
 import type { ResearchReport } from '../research/research';
 import type { ResearchRepo } from './db/repositories';
 import type { TradingConfig } from '../config';
@@ -44,6 +44,7 @@ export function apiRoutes(d: RouteDeps): ApiRoutes {
   const aliveWithinSeconds = Math.max(120, d.tradingConfig.engine.pollSeconds * 4);
   const watchlist = () => loadWatchlist(d.files.watchlist)?.entries.map((e) => e.symbol) ?? [];
   const market = cached<MarketOverview>(60_000, () => marketOverview({ quotes: d.quotes }, { watchlist: watchlist(), holidays: d.tradingConfig.engine.holidays, now: now() }));
+  const movers = cached<MarketMovers>(60_000, () => marketMovers({ quotes: d.quotes }, { symbols: LARGE_CAPS, holidays: d.tradingConfig.engine.holidays, now: now() }));
   const paperCapital = Number(d.env.PAPER_CAPITAL ?? 500_000);
   const researchCache = new Map<string, { at: number; report: ResearchReport }>();
   const researchInflight = new Map<string, Promise<ResearchReport>>();
@@ -60,6 +61,13 @@ export function apiRoutes(d: RouteDeps): ApiRoutes {
         return await market();
       } catch (e) {
         // A data-provider outage is not a server bug: say which source failed (502), not "internal error".
+        throw new HttpError(502, `Market data unavailable from Yahoo Finance (${(e as Error).message}). Try again in a few minutes.`);
+      }
+    },
+    '/api/market/movers': async () => {
+      try {
+        return await movers();
+      } catch (e) {
         throw new HttpError(502, `Market data unavailable from Yahoo Finance (${(e as Error).message}). Try again in a few minutes.`);
       }
     },

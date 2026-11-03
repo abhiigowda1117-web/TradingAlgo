@@ -9,7 +9,10 @@ export default {
         down: '#f43f5e',
         accent: '#38bdf8',
       },
-      fontFamily: { sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'] },
+      fontFamily: {
+        sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+        led: ['Doto', 'ui-monospace', 'Consolas', 'monospace'],
+      },
     },
   },
   plugins: [],

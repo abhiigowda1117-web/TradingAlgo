@@ -93,3 +93,24 @@ export interface Settings {
   engine: Record<string, string | number>;
   capital: number;
 }
+
+export interface MoverRow {
+  symbol: string;
+  name: string | null;
+  price: number;
+  change: number | null;
+  /** Percent units: 1.5 means +1.5%. */
+  changePct: number;
+}
+
+export interface MarketMovers {
+  generatedAt: string;
+  session: { open: boolean; label: string; istTime: string; holiday: boolean };
+  gainers: MoverRow[];
+  losers: MoverRow[];
+  tape: MoverRow[];
+  scanned: number;
+  unavailable: number;
+  quoteTime: string | null;
+  dataNote: string;
+}

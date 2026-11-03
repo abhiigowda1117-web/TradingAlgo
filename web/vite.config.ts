@@ -10,5 +10,6 @@ export default defineConfig({
     strictPort: true,
     proxy: { '/api': { target: 'http://127.0.0.1:3001', changeOrigin: false } },
   },
-  build: { outDir: 'dist', sourcemap: false },
+  // assetsInlineLimit 0: never inline assets as data: URIs; the server's Content-Security-Policy only allows fonts from 'self'.
+  build: { outDir: 'dist', sourcemap: false, assetsInlineLimit: 0 },
 });

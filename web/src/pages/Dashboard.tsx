@@ -1,8 +1,10 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { EquityChart } from '../components/EquityChart';
+import { MoversBoard, moversRefreshMs, TickerTape } from '../components/MarketMovers';
 import { Badge, Card, Empty, ErrorBox, Loading, Stat } from '../components/ui';
 import { ago, inr, inrShort, istTime, num, pct, signedPct, signedPoints, tone } from '../lib/format';
-import type { DashboardSummary, MarketOverview, Watchlist } from '../lib/types';
+import type { DashboardSummary, MarketMovers, MarketOverview, Watchlist } from '../lib/types';
 import { useApi } from '../lib/useApi';
 import { EngineBadge } from './Engine';
 
@@ -10,10 +12,16 @@ export function Dashboard() {
   const summary = useApi<DashboardSummary>('/api/dashboard/summary', 60_000);
   const market = useApi<MarketOverview>('/api/market/overview', 120_000);
   const watchlist = useApi<Watchlist>('/api/watchlist');
+  const [moversMs, setMoversMs] = useState(60_000);
+  const movers = useApi<MarketMovers>('/api/market/movers', moversMs);
+  useEffect(() => {
+    if (movers.data) setMoversMs(moversRefreshMs(movers.data));
+  }, [movers.data]);
   const e = summary.data?.engine;
 
   return (
     <div className="space-y-4">
+      <TickerTape data={movers.data} />
       {summary.error && <ErrorBox message={summary.error} />}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Stat
@@ -25,6 +33,8 @@ export function Dashboard() {
         <Stat label="Today's P&L" value={e?.dayPnl == null ? '—' : inr(e.dayPnl)} valueClass={tone(e?.dayPnl)} sub="vs. equity at the day's start" />
         <Stat label="Open positions" value={e ? String(e.positions.length) : '—'} sub={e ? `${e.openOrders.length} orders in progress` : undefined} />
       </div>
+
+      <MoversBoard data={movers.data} error={movers.error} />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card title="Trading engine" action={<Link to="/engine" className="text-xs text-accent">Details</Link>}>

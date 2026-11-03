@@ -13,6 +13,7 @@ import { migrate } from '../src/server/db/migrate';
 import { ResearchRepo, SessionRepo, SystemLogRepo, UserRepo } from '../src/server/db/repositories';
 import type { ResearchReport } from '../src/research/research';
 import { apiRoutes } from '../src/server/routes';
+import { LARGE_CAPS, marketMovers } from '../src/research/market';
 import { tradingCfg } from './helpers';
 
 const PASSWORD = 'correct horse battery';
@@ -88,7 +89,7 @@ async function signIn(base: string) {
   return { res, cookie: cookie.split(';')[0]!, setCookie: cookie, csrfToken };
 }
 
-const PROTECTED = ['/api/research/recent', '/api/auth/me', '/api/dashboard/summary', '/api/engine/status', '/api/market/overview', '/api/watchlist', '/api/trades', '/api/backtest/latest', '/api/settings'];
+const PROTECTED = ['/api/market/movers', '/api/research/recent', '/api/auth/me', '/api/dashboard/summary', '/api/engine/status', '/api/market/overview', '/api/watchlist', '/api/trades', '/api/backtest/latest', '/api/settings'];
 
 describe('passwords', () => {
   it('hashes with scrypt, verifies, and rejects short passwords', async () => {
@@ -403,5 +404,49 @@ describe('company research API', () => {
     expect(a.status).toBe(404);
     expect((await a.json()).error).toMatch(/No NSE company/);
     expect((await get('/api/research?q=TCS')).status).toBe(502);
+  });
+});
+
+describe('market movers board', () => {
+  const q = (ticker: string, price: number | null, changePct: number | null): QuoteSnapshot => ({ ...quote(ticker, price ?? 0), price, changePct, time: '2026-11-03T09:55:00.000Z' });
+
+  it('ranks gainers and losers by percent change, skips unpriced stocks, and keeps flat stocks off both lists', async () => {
+    const book: Record<string, QuoteSnapshot> = {
+      'AAA.NS': q('AAA.NS', 100, 2.5), 'BBB.NS': q('BBB.NS', 200, 4.1), 'CCC.NS': q('CCC.NS', 50, -3.2),
+      'DDD.NS': q('DDD.NS', 75, -0.4), 'EEE.NS': q('EEE.NS', 10, 0), 'FFF.NS': q('FFF.NS', null, null), 'GGG.NS': q('GGG.NS', 300, 2.5),
+    };
+    const m = await marketMovers({ quotes: async (t) => t.map((x) => book[x]).filter(Boolean) as QuoteSnapshot[] }, {
+      symbols: ['AAA', 'BBB', 'CCC', 'DDD', 'EEE', 'FFF', 'GGG', 'HHH'], holidays: [], now: new Date('2026-11-03T05:00:00Z'), count: 2,
+    });
+    expect(m.gainers.map((r) => r.symbol)).toEqual(['BBB', 'AAA']); // AAA before GGG on a tie (alphabetical)
+    expect(m.losers.map((r) => r.symbol)).toEqual(['CCC', 'DDD']);
+    expect(m.tape.map((r) => r.symbol)).toEqual(['AAA', 'BBB', 'CCC', 'DDD', 'EEE', 'GGG']);
+    expect(m).toMatchObject({ scanned: 8, unavailable: 2, quoteTime: '2026-11-03T09:55:00.000Z' });
+    expect(m.session.open).toBe(true); // 10:30 IST on a Tuesday
+    expect(m.dataNote).toMatch(/delayed by about 15 minutes; not real-time/);
+  });
+
+  it('serves the board to signed-in users and reports outages as 502', async () => {
+    const { base } = await start();
+    const { cookie } = await signIn(base);
+    const res = await fetch(`${base}/api/market/movers`, { headers: { Cookie: cookie } });
+    expect(res.status).toBe(200);
+    expect((await res.json()).scanned).toBe(LARGE_CAPS.length);
+    close?.();
+    const pool = await memoryDb();
+    const users = new UserRepo(pool);
+    await users.upsertOwner('owner', await hashPassword(PASSWORD));
+    const { f, dir } = engineFixture();
+    const app = createApp({
+      db: pool, users, sessions: new SessionRepo(pool, 3_600_000), logs: new SystemLogRepo(pool), allowedOrigins: [ORIGIN], cookieSecure: false, trustProxy: false, sessionTtlMs: 3_600_000, tradingMode: 'paper', version: 't',
+      routes: apiRoutes({ files: f, backtestResult: join(dir, 'x.json'), tradingConfig: tradingCfg, env: {}, quotes: async () => { throw new Error('Yahoo 429'); } }),
+    });
+    await new Promise<void>((r) => app.listen(0, '127.0.0.1', r));
+    close = () => app.close();
+    const b2 = `http://127.0.0.1:${(app.address() as AddressInfo).port}`;
+    const s2 = await signIn(b2);
+    const bad = await fetch(`${b2}/api/market/movers`, { headers: { Cookie: s2.cookie } });
+    expect(bad.status).toBe(502);
+    expect((await bad.json()).error).toMatch(/Yahoo Finance \(Yahoo 429\)/);
   });
 });
