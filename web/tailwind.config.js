@@ -4,10 +4,11 @@ export default {
   theme: {
     extend: {
       colors: {
-        ink: { 950: '#0a0e14', 900: '#0f141c', 850: '#131a24', 800: '#18212d', 700: '#243041', 600: '#334155' },
-        up: '#22c55e',
-        down: '#f43f5e',
-        accent: '#38bdf8',
+        ink: { 950: '#000000', 900: '#06070d', 850: '#0b0e18', 800: '#111526', 700: '#1c2340', 600: '#2a3358' },
+        up: '#3db8ff',
+        down: '#ff2d78',
+        accent: '#2f7dff',
+        rose: { DEFAULT: '#ff2d78', soft: '#ff6fa5' },
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],

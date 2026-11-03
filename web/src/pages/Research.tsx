@@ -75,20 +75,20 @@ function Report({ r }: { r: ResearchReport }) {
   const priceLines = useMemo(
     () => (t ? [
       { label: 'Close', color: '#e2e8f0', width: 2 as const, points: t.series.map((p) => ({ time: p.date, value: p.close })) },
-      { label: 'EMA 20', color: '#38bdf8', points: t.series.filter((p) => p.ema20 !== null).map((p) => ({ time: p.date, value: p.ema20! })) },
-      { label: 'EMA 50', color: '#f59e0b', points: t.series.filter((p) => p.ema50 !== null).map((p) => ({ time: p.date, value: p.ema50! })) },
+      { label: 'EMA 20', color: '#3db8ff', points: t.series.filter((p) => p.ema20 !== null).map((p) => ({ time: p.date, value: p.ema20! })) },
+      { label: 'EMA 50', color: '#ff2d78', points: t.series.filter((p) => p.ema50 !== null).map((p) => ({ time: p.date, value: p.ema50! })) },
       { label: 'EMA 200', color: '#a78bfa', points: t.series.filter((p) => p.ema200 !== null).map((p) => ({ time: p.date, value: p.ema200! })) },
     ] : []),
     [t],
   );
   const levels = useMemo(
-    () => (t ? [...t.supports.slice(0, 2).map((l, i) => ({ price: l.price, color: '#22c55e', title: `S${i + 1}` })), ...t.resistances.slice(0, 2).map((l, i) => ({ price: l.price, color: '#f43f5e', title: `R${i + 1}` }))] : []),
+    () => (t ? [...t.supports.slice(0, 2).map((l, i) => ({ price: l.price, color: '#3db8ff', title: `S${i + 1}` })), ...t.resistances.slice(0, 2).map((l, i) => ({ price: l.price, color: '#ff2d78', title: `R${i + 1}` }))] : []),
     [t],
   );
   const macdLines = useMemo(
     () => (t ? [
-      { label: 'MACD', color: '#38bdf8', points: t.series.filter((p) => p.macd !== null).map((p) => ({ time: p.date, value: p.macd! })) },
-      { label: 'Signal', color: '#f59e0b', points: t.series.filter((p) => p.signal !== null).map((p) => ({ time: p.date, value: p.signal! })) },
+      { label: 'MACD', color: '#3db8ff', points: t.series.filter((p) => p.macd !== null).map((p) => ({ time: p.date, value: p.macd! })) },
+      { label: 'Signal', color: '#ff2d78', points: t.series.filter((p) => p.signal !== null).map((p) => ({ time: p.date, value: p.signal! })) },
     ] : []),
     [t],
   );
@@ -133,7 +133,7 @@ function Report({ r }: { r: ResearchReport }) {
           {([['Annual revenue & net profit', f.annual], ['Quarterly revenue & net profit', f.quarterly]] as const).map(([title, rows]) => (
             <div key={title}>
               <h3 className="mb-2 text-sm font-semibold text-slate-300">{title} <span className="font-normal text-slate-500">(Reported)</span></h3>
-              {rows.length ? <Bars periods={rows.map((p) => p.periodEnd)} series={[{ label: 'Revenue', color: '#38bdf8', values: rows.map((p) => p.revenue) }, { label: 'Net profit', color: '#22c55e', values: rows.map((p) => p.netIncome) }]} /> : <Empty>{NA}</Empty>}
+              {rows.length ? <Bars periods={rows.map((p) => p.periodEnd)} series={[{ label: 'Revenue', color: '#2f7dff', values: rows.map((p) => p.revenue) }, { label: 'Net profit', color: '#ff6fa5', values: rows.map((p) => p.netIncome) }]} /> : <Empty>{NA}</Empty>}
             </div>
           ))}
         </div>

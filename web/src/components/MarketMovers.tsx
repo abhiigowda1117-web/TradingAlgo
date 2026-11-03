@@ -20,9 +20,9 @@ export function TickerTape({ data }: { data: Movers | null }) {
   const items = data.tape;
   const Item = ({ r }: { r: MoverRow }) => (
     <button type="button" onClick={() => navigate(`/research?q=${encodeURIComponent(r.symbol)}`)} className="led flex shrink-0 items-baseline gap-2 px-5 text-lg" title={`${r.name ?? r.symbol}: open research`}>
-      <span className="led-amber">{r.symbol}</span>
+      <span className="led-sym">{r.symbol}</span>
       <span className="text-slate-200">{price(r.price)}</span>
-      <span className={r.changePct > 0 ? 'led-green' : r.changePct < 0 ? 'led-red' : 'led-dim'}>
+      <span className={r.changePct > 0 ? 'led-up' : r.changePct < 0 ? 'led-down' : 'led-dim'}>
         {r.changePct > 0 ? '▲' : r.changePct < 0 ? '▼' : '■'} {chg(r.changePct)}
       </span>
     </button>
@@ -40,7 +40,7 @@ export function TickerTape({ data }: { data: Movers | null }) {
 
 function Panel({ title, rows, kind }: { title: string; rows: MoverRow[]; kind: 'up' | 'down' }) {
   const navigate = useNavigate();
-  const color = kind === 'up' ? 'led-green' : 'led-red';
+  const color = kind === 'up' ? 'led-up' : 'led-down';
   return (
     <div className="led-board min-w-0">
       <div className={`led mb-2 flex items-center justify-between border-b border-white/10 pb-2 text-xl sm:text-2xl ${color}`}>
@@ -61,7 +61,7 @@ function Panel({ title, rows, kind }: { title: string; rows: MoverRow[]; kind: '
             title={`${r.name ?? r.symbol}: click to open its research`}
           >
             <span className="led-dim">{String(i + 1).padStart(2, '0')}</span>
-            <span className="led-amber truncate">{r.symbol}</span>
+            <span className="led-sym truncate">{r.symbol}</span>
             <span className="text-right text-slate-200">{price(r.price)}</span>
             <span className={`min-w-[4.8rem] text-right sm:min-w-[5.5rem] ${color}`}>{chg(r.changePct)}</span>
           </div>
@@ -76,11 +76,11 @@ export function MoversBoard({ data, error }: { data: Movers | null; error: strin
   return (
     <section aria-label="Top gainers and losers">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs">
-        <h2 className="led led-amber text-lg tracking-widest sm:text-xl">MARKET MOVERS</h2>
+        <h2 className="led led-rose text-lg tracking-widest sm:text-xl">MARKET MOVERS</h2>
         {data && (
           <span className="led flex items-center gap-3 text-sm">
             {data.session.open ? (
-              <span className="led-green"><span className="led-blink">●</span> NSE OPEN · DELAYED ~15 MIN</span>
+              <span className="led-up"><span className="led-blink">●</span> NSE OPEN · DELAYED ~15 MIN</span>
             ) : (
               <span className="led-dim">● MARKET CLOSED · LAST SESSION</span>
             )}

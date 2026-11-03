@@ -15,7 +15,7 @@ export function TimeChart({ lines, levels = [], height = 300, format = (v: numbe
     if (!box.current) return;
     const c = createChart(box.current, {
       autoSize: true,
-      layout: { background: { type: ColorType.Solid, color: 'transparent' }, textColor: '#94a3b8', fontSize: 11 },
+      layout: { background: { type: ColorType.Solid, color: 'transparent' }, textColor: '#8b95b3', fontSize: 11 },
       grid: { vertLines: { color: '#18212d' }, horzLines: { color: '#18212d' } },
       rightPriceScale: { borderColor: '#243041' },
       timeScale: { borderColor: '#243041' },

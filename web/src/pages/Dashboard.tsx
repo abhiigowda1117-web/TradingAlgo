@@ -84,7 +84,7 @@ export function Dashboard() {
             <>
               <EquityChart
                 series={[
-                  { label: 'Strategy', color: '#38bdf8', points: summary.data.backtest.curve.map((p) => ({ time: p.day, value: p.strategy })) },
+                  { label: 'Strategy', color: '#ff2d78', points: summary.data.backtest.curve.map((p) => ({ time: p.day, value: p.strategy })) },
                   { label: 'NIFTY 50', color: '#94a3b8', points: summary.data.backtest.curve.map((p) => ({ time: p.day, value: p.benchmark })) },
                 ]}
               />
