@@ -69,6 +69,7 @@ interface ChartData {
   session: { open: boolean; label: string };
   fetchedAt: string;
   dataNote: string;
+  source?: { provider: 'kite' | 'yahoo'; live: boolean; label: string; warning?: string };
 }
 type Point = { time: Time; price: number };
 type Drawing = { kind: 'h'; price: number } | { kind: 't'; interval: Interval; a: Point; b: Point };
@@ -435,6 +436,7 @@ export function StockChart({ symbol }: { symbol: string }) {
         </div>
       )}
 
+      {data?.source?.warning && <p className="mt-2 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-200">{data.source.warning}</p>}
       <p className="mt-2 text-xs text-slate-500">
         {data ? `${data.dataNote} Updated ${clock(data.fetchedAt)} IST; refreshes every ${intraday ? '30 seconds' : '5 minutes'}. ${data.session.open ? 'NSE is open.' : 'Market closed: showing the last session.'}` : 'Delayed data from Yahoo Finance; not real-time.'}{' '}
         Scroll to zoom, drag to pan. Research only: no order buttons.

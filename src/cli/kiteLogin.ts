@@ -1,6 +1,9 @@
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline/promises';
-import { loadEnv } from '../config';
+import { resolve } from 'node:path';
+import { loadEnv, ROOT } from '../config';
 import { createKiteSession, kiteLoginUrl } from '../trading/brokers/kiteClient';
+import { setEnvValue } from '../util/envFile';
 import { registerSecret } from '../util/log';
 
 // Usage: npm run kite-login   (Kite access tokens expire every morning)
@@ -16,4 +19,17 @@ const input = (await rl.question('3. Paste the request_token (or the whole redir
 rl.close();
 const requestToken = input.includes('request_token=') ? new URL(input).searchParams.get('request_token')! : input;
 const session = await createKiteSession(apiKey, apiSecret, requestToken);
-console.log(`\nLogged in as ${session.user_id}. Put this in .env:\nKITE_ACCESS_TOKEN=${session.access_token}`);
+registerSecret(session.access_token);
+// Save the token into .env (never print it: screenshots of this window would leak it).
+const envPath = resolve(ROOT, '.env');
+console.log(`\nLogged in as ${session.user_id}.`);
+try {
+  const text = existsSync(envPath) ? readFileSync(envPath, 'utf8') : '';
+  writeFileSync(envPath, setEnvValue(text, 'KITE_ACCESS_TOKEN', session.access_token));
+  console.log('Saved the new access token to .env (KITE_ACCESS_TOKEN). It is valid until about 6 AM tomorrow.');
+  console.log('The website picks it up within 30 seconds; the trading engine needs a restart.');
+} catch (e) {
+  console.error(`Could not write .env (${(e as Error).message}). Open .env and set KITE_ACCESS_TOKEN by hand; the token is not shown here for safety.`);
+  process.exit(1);
+}
+

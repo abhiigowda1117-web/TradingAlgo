@@ -1,6 +1,7 @@
 import { loadWatchlist } from '../study/watchlist';
 import type { ChartYahooInterval, QuoteSnapshot } from '../research/companyUpdate';
 import type { Candle } from '../research/types';
+import { describeQuotes, type PriceSourceInfo } from './services/prices';
 import { LARGE_CAPS, marketMovers, marketOverview, sessionStatus, type MarketMovers, type MarketOverview } from '../research/market';
 import type { ResearchReport } from '../research/research';
 import type { ResearchRepo } from './db/repositories';
@@ -32,8 +33,10 @@ export interface RouteDeps {
   /** Runs company research for a name or NSE symbol (read-only; never touches trading). */
   research?: (query: string, peers: string[]) => Promise<ResearchReport>;
   researchRepo?: ResearchRepo;
-  /** Candles for the interactive chart (read-only market data). */
-  chart?: (ticker: string, interval: ChartYahooInterval, from: Date) => Promise<Candle[]>;
+  /** Candles for the interactive chart (read-only market data). A plain array means Yahoo Finance. */
+  chart?: (ticker: string, interval: ChartYahooInterval, from: Date) => Promise<Candle[] | { rows: Candle[]; provider: 'kite' | 'yahoo'; warning?: string; note?: string }>;
+  /** Current Zerodha Kite problem, if Kite is switched on but failing (shown on the page). */
+  priceWarning?: () => string | undefined;
   now?: () => Date;
 }
 
@@ -88,11 +91,27 @@ export function apiRoutes(d: RouteDeps): ApiRoutes {
   const mode = d.env.TRADING_MODE === 'live' ? 'live' : 'paper';
   const aliveWithinSeconds = Math.max(120, d.tradingConfig.engine.pollSeconds * 4);
   const watchlist = () => loadWatchlist(d.files.watchlist)?.entries.map((e) => e.symbol) ?? [];
-  const market = cached<MarketOverview>(60_000, () => marketOverview({ quotes: d.quotes }, { watchlist: watchlist(), holidays: d.tradingConfig.engine.holidays, now: now() }));
-  const movers = cached<MarketMovers>(60_000, () => marketMovers({ quotes: d.quotes }, { symbols: LARGE_CAPS, holidays: d.tradingConfig.engine.holidays, now: now() }));
+  // Each view records which provider priced its rows, so the page can say where the numbers came from.
+  const sourced = async <T>(build: (quotes: RouteDeps['quotes']) => Promise<T>) => {
+    const seen: QuoteSnapshot[] = [];
+    const out = await build(async (t) => {
+      const r = await d.quotes(t);
+      seen.push(...r);
+      return r;
+    });
+    return { out, source: describeQuotes(seen, d.priceWarning?.()) };
+  };
+  const market = cached<MarketOverview & { source: PriceSourceInfo }>(60_000, async () => {
+    const { out, source } = await sourced((quotes) => marketOverview({ quotes }, { watchlist: watchlist(), holidays: d.tradingConfig.engine.holidays, now: now() }));
+    return { ...out, source, dataNote: `${source.label} Items with no price show Not Available.` };
+  });
+  const movers = cached<MarketMovers & { source: PriceSourceInfo }>(60_000, async () => {
+    const { out, source } = await sourced((quotes) => marketMovers({ quotes }, { symbols: LARGE_CAPS, holidays: d.tradingConfig.engine.holidays, now: now() }));
+    return { ...out, source, dataNote: `Scans ${out.scanned} large NSE companies (close to the NIFTY 50 list). ${source.label}` };
+  });
   const paperCapital = Number(d.env.PAPER_CAPITAL ?? 500_000);
   const researchCache = new Map<string, { at: number; report: ResearchReport }>();
-  const chartCache = new Map<string, { at: number; p: Promise<ChartCandle[]> }>();
+  const chartCache = new Map<string, { at: number; p: Promise<{ candles: ChartCandle[]; provider: 'kite' | 'yahoo'; warning?: string; note?: string }> }>();
   const researchInflight = new Map<string, Promise<ResearchReport>>();
   const status = () => engineStatus(d.files, { now: now(), aliveWithinSeconds, mode, quotes: d.quotes, initialCash: Number.isFinite(paperCapital) && paperCapital > 0 ? paperCapital : undefined });
 
@@ -128,7 +147,8 @@ export function apiRoutes(d: RouteDeps): ApiRoutes {
       }
       const row = rows.find((r) => r.ticker === `${symbol}.NS`);
       if (!row || row.price === null) throw new HttpError(404, `No price available for ${symbol} right now`);
-      return { symbol, ...row, session: sessionStatus(now(), d.tradingConfig.engine.holidays), fetchedAt: now().toISOString(), dataNote: 'Yahoo Finance quote, delayed by about 15 minutes; not real-time.' };
+      const source = describeQuotes([row], d.priceWarning?.());
+      return { symbol, ...row, session: sessionStatus(now(), d.tradingConfig.engine.holidays), fetchedAt: now().toISOString(), source, dataNote: source.label };
     },
     '/api/chart': async (q) => {
       if (!d.chart) throw new HttpError(503, 'Charts are not configured on this server');
@@ -144,22 +164,34 @@ export function apiRoutes(d: RouteDeps): ApiRoutes {
       let hit = chartCache.get(key);
       if (!hit || Date.now() - hit.at > ttl) {
         const from = new Date(now().getTime() - RANGE_DAYS[range]! * 86_400_000);
-        hit = { at: Date.now(), p: d.chart(`${symbol}.NS`, spec.yahoo, from).then((rows) => toChartCandles(rows, spec.intraday, range)) };
+        hit = {
+          at: Date.now(),
+          p: d.chart(`${symbol}.NS`, spec.yahoo, from).then((res) => {
+            const r = Array.isArray(res) ? { rows: res, provider: 'yahoo' as const } : res;
+            return { candles: toChartCandles(r.rows, spec.intraday, range), provider: r.provider, warning: 'warning' in r ? r.warning : undefined, note: 'note' in r ? r.note : undefined };
+          }),
+        };
         chartCache.set(key, hit);
         if (chartCache.size > 300) chartCache.delete(chartCache.keys().next().value!);
       }
-      let candles: ChartCandle[];
+      let result: Awaited<typeof hit.p>;
       try {
-        candles = await hit.p;
+        result = await hit.p;
       } catch (e) {
         chartCache.delete(key); // do not cache failures
         throw new HttpError(502, `Chart data unavailable from Yahoo Finance (${(e as Error).message}). Try again shortly.`);
       }
+      const { candles, provider, warning, note } = result;
       if (!candles.length) throw new HttpError(404, `No ${interval} price data for ${symbol} in this range`);
       return {
         symbol, interval, range, intraday: spec.intraday, ranges: spec.ranges, candles,
         session: sessionStatus(now(), d.tradingConfig.engine.holidays), fetchedAt: now().toISOString(),
-        dataNote: 'Candles from Yahoo Finance, delayed by about 15 minutes; not real-time. Times are IST.',
+        source: provider === 'kite'
+          ? { provider, live: true, label: 'Zerodha Kite: exchange candles as provided by Kite.' }
+          : { provider, live: false, label: 'Yahoo Finance, delayed by about 15 minutes; not real-time.', ...(warning ? { warning: `${warning}. Showing Yahoo Finance (delayed) instead.` } : {}) },
+        dataNote: provider === 'kite'
+          ? `Candles from Zerodha Kite, as provided by Kite. Times are IST.${note ? ` ${note}` : ''}`
+          : 'Candles from Yahoo Finance, delayed by about 15 minutes; not real-time. Times are IST.',
       };
     },
     '/api/watchlist': () => {

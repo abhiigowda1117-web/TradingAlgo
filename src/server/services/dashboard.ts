@@ -105,6 +105,7 @@ export function settingsView(cfg: TradingConfig, env: NodeJS.ProcessEnv) {
   return {
     tradingMode: env.TRADING_MODE === 'live' ? 'live' : 'paper',
     marketData: env.MARKET_DATA === 'kite' ? 'kite' : 'yahoo',
+    webMarketData: env.WEB_MARKET_DATA === 'kite' ? 'kite' : 'yahoo',
     brokerConfigured: Boolean(env.KITE_API_KEY && env.KITE_ACCESS_TOKEN),
     strategy: cfg.strategy,
     risk: cfg.risk,

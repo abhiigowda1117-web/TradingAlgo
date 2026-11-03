@@ -101,6 +101,27 @@ Open **http://localhost:3001** and sign in. Press Ctrl+C to stop.
 
 For frontend development with live reload, use two windows: `npm run server` in one and `npm run web:dev` in the other, then open http://localhost:5173.
 
+### Live prices from Zerodha Kite (optional)
+
+By default the website uses Yahoo Finance: free, but about 15 minutes delayed. To show exchange prices
+from your own Zerodha Kite Connect account instead:
+
+1. Create a Kite Connect app at https://developers.kite.trade (paid; check the current price there).
+   Charts also need the historical-data add-on. Set the app's redirect URL to `http://127.0.0.1`.
+2. In `.env` set `KITE_API_KEY`, `KITE_API_SECRET` and `WEB_MARKET_DATA=kite`.
+3. Each morning (tokens expire around 6 AM IST) run `npm run kite-login`, open the link, log in, and paste
+   the address you are sent to. The new token is saved into `.env` for you (it is never printed), and the
+   website starts using it within 30 seconds; no restart needed.
+
+What changes: the price, today's change, the Market Movers board, the ticker tape, Market Pulse and the
+charts come from Kite. Company names, the 52-week range, market cap and P/E still come from Yahoo, because
+Kite's quote API does not include them. Weekly and monthly chart candles are built from Kite's daily
+candles. Every board, price and chart says which source it used. If Kite fails (expired login, missing
+add-on, outage), the site falls back to Yahoo and shows a yellow note with the reason.
+
+Safety: the website only uses Kite's read endpoints (`/quote`, `/instruments/historical`) through a
+separate read-only client, keys never leave the server, and the website still cannot place orders.
+
 ### Security
 - **Passwords:** scrypt-hashed. Sign-in is locked for 15 minutes after 5 failed attempts.
 - **Sessions:** an HttpOnly, SameSite=Strict cookie. The database stores only a SHA-256 of the session ID. Sessions expire after 12 hours.

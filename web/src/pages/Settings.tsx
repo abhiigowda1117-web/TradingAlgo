@@ -24,7 +24,8 @@ export function Settings() {
           <Card title="Account and data">
             <dl className="space-y-2 text-sm">
               <div className="flex justify-between"><dt className="text-slate-400">Trading mode</dt><dd><Badge color={data.tradingMode === 'paper' ? 'blue' : 'red'}>{data.tradingMode.toUpperCase()}</Badge></dd></div>
-              <div className="flex justify-between"><dt className="text-slate-400">Market data</dt><dd>{data.marketData}</dd></div>
+              <div className="flex justify-between"><dt className="text-slate-400">Trading engine market data</dt><dd>{data.marketData}</dd></div>
+              <div className="flex justify-between"><dt className="text-slate-400">Website prices</dt><dd>{data.webMarketData === 'kite' ? 'Zerodha Kite' : 'Yahoo Finance (delayed)'}</dd></div>
               <div className="flex justify-between"><dt className="text-slate-400">Broker credentials on server</dt><dd>{data.brokerConfigured ? 'Configured (hidden)' : 'Not configured'}</dd></div>
               <div className="flex justify-between"><dt className="text-slate-400">Backtest capital</dt><dd>{inr(data.capital)}</dd></div>
             </dl>

@@ -69,6 +69,7 @@ export interface IndexRow {
 }
 
 export interface MarketOverview {
+  source?: PriceSource;
   generatedAt: string;
   session: { open: boolean; label: string; istTime: string; holiday: boolean };
   indices: IndexRow[];
@@ -87,6 +88,7 @@ export interface Watchlist {
 export interface Settings {
   tradingMode: 'paper' | 'live';
   marketData: string;
+  webMarketData: string;
   brokerConfigured: boolean;
   strategy: Record<string, number>;
   risk: Record<string, number>;
@@ -103,7 +105,16 @@ export interface MoverRow {
   changePct: number;
 }
 
+/** Where a set of prices came from (Zerodha Kite or Yahoo Finance), and any reason Kite was not used. */
+export interface PriceSource {
+  provider: 'kite' | 'yahoo' | 'mixed';
+  live: boolean;
+  label: string;
+  warning?: string;
+}
+
 export interface MarketMovers {
+  source?: PriceSource;
   generatedAt: string;
   session: { open: boolean; label: string; istTime: string; holiday: boolean };
   gainers: MoverRow[];

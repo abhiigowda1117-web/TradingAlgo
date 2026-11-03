@@ -28,6 +28,8 @@ export interface QuoteSnapshot {
   pe: number | null;
   time: string | null;
   marketState: string | null;
+  /** Which provider priced this row, when known (the website can use Zerodha Kite or Yahoo Finance). */
+  source?: 'kite' | 'yahoo';
 }
 
 export interface SearchHit {

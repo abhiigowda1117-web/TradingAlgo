@@ -88,7 +88,7 @@ export function MarketPulse({ market, movers }: { market: MarketOverview | null;
           {worst && <div className="flex justify-between"><span className="text-slate-500">Weakest</span><span><span className="text-slate-300">{worst.label.replace('NIFTY ', '')}</span> <span className={toneOf(worst.changePct)}>{chg(worst.changePct)}</span></span></div>}
         </div>
       )}
-      <p className="mt-3 text-[10px] leading-snug text-slate-600">Delayed ~15 min. Paper trading only. Not investment advice.</p>
+      <p className="mt-3 text-[10px] leading-snug text-slate-600">{market?.source?.live ? 'Prices: Zerodha Kite.' : 'Prices: Yahoo Finance, delayed ~15 min.'} Paper trading only. Not investment advice.</p>
     </div>
   );
 }

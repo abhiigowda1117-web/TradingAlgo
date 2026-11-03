@@ -86,6 +86,7 @@ interface LiveQuote {
   time: string | null;
   fetchedAt: string;
   session: { open: boolean; label: string };
+  source?: { provider: 'kite' | 'yahoo' | 'mixed'; live: boolean; label: string; warning?: string };
 }
 
 /** 30-second poll. Both header parts call it; the server caches quotes for 20 s, so Yahoo sees one request. */
@@ -107,9 +108,10 @@ function LivePrice({ symbol, fallback, fallbackTime }: { symbol: string; fallbac
       ) : (
         <div className="text-xs text-slate-500">{error ? `Live price unavailable: ${error}` : 'Loading live price…'}</div>
       )}
+      {q?.source?.warning && <div className="mt-1 max-w-sm text-xs text-amber-300">{q.source.warning}</div>}
       <div className="mt-0.5 flex items-center justify-end gap-1.5 text-xs text-slate-500">
         {q?.session.open ? <span className="led-blink text-up">●</span> : <span className="text-slate-600">●</span>}
-        {q ? `Updated ${clock(q.fetchedAt)} IST · refreshes every 30 s` : istTime(fallbackTime)} · delayed ~15 min{q && !q.session.open ? ' · market closed' : ''}
+        {q ? `Updated ${clock(q.fetchedAt)} IST · refreshes every 30 s` : istTime(fallbackTime)} · {q?.source?.live ? 'Zerodha Kite' : 'Yahoo Finance, delayed ~15 min'}{q && !q.session.open ? ' · market closed' : ''}
       </div>
     </div>
   );

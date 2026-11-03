@@ -80,7 +80,7 @@ export function MoversBoard({ data, error }: { data: Movers | null; error: strin
         {data && (
           <span className="led flex items-center gap-3 text-sm">
             {data.session.open ? (
-              <span className="led-up"><span className="led-blink">●</span> NSE OPEN · DELAYED ~15 MIN</span>
+              <span className="led-up"><span className="led-blink">●</span> NSE OPEN · {data.source?.live ? 'LIVE · ZERODHA KITE' : 'DELAYED ~15 MIN'}</span>
             ) : (
               <span className="led-dim">● MARKET CLOSED · LAST SESSION</span>
             )}
@@ -96,6 +96,7 @@ export function MoversBoard({ data, error }: { data: Movers | null; error: strin
             <Panel title="TOP GAINERS" rows={data.gainers} kind="up" />
             <Panel title="TOP LOSERS" rows={data.losers} kind="down" />
           </div>
+          {data.source?.warning && <p className="mt-2 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-200">{data.source.warning}</p>}
           <p className="mt-2 text-xs text-slate-500">
             {data.dataNote} Refreshes every {data.session.open ? 'minute' : '5 minutes'}.{data.unavailable > 0 ? ` ${data.unavailable} symbols had no quote.` : ''} Click a stock to open its research.
             {error ? ` Last refresh failed (${error}); showing the previous figures.` : ''}

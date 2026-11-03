@@ -72,6 +72,7 @@ export function Dashboard() {
               <ul className="mt-3 space-y-1 text-sm text-slate-300">
                 {market.data.summary.map((s) => <li key={s}>• {s}</li>)}
               </ul>
+              {market.data.source?.warning && <p className="mt-2 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-200">{market.data.source.warning}</p>}
               <p className="mt-2 text-xs text-slate-500">{market.data.dataNote} Summary is a rule-based interpretation.</p>
             </>
           )}
