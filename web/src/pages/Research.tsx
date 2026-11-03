@@ -251,7 +251,9 @@ export function Research() {
       setParams(Object.fromEntries([...qs].filter(([k]) => k !== 'refresh')), { replace: true });
       void recent.reload();
     } catch (e) {
-      setError((e as Error).message);
+      const msg = (e as Error).message;
+      // A bare "Not found" means the running server predates this page: it has no research route yet.
+      setError(msg === 'Not found' ? 'The server is running an older version without Company Research. Stop it (Ctrl + C) and start it again with: npm.cmd run server' : msg);
     } finally {
       setBusy(false);
     }

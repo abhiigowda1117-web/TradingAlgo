@@ -77,6 +77,13 @@ describe('resolving what the user typed', () => {
     expect((await resolveCompany('TATA', src)).ticker).toBe('TATAMOTORS.NS');
   });
 
+  it('retries without a Ltd/Limited suffix when the full name finds nothing', async () => {
+    const src = fake({ quotes: { 'SURAKSHA.NS': quote('SURAKSHA.NS') } });
+    src.search = async (q) => (src.searched.push(q), q === 'Suraksha Diagnostic' ? [{ symbol: 'SURAKSHA.NS', name: 'Suraksha Diagnostic Limited', exchange: 'NSI' }] : []);
+    expect((await resolveCompany('Suraksha Diagnostic Ltd', src)).symbol).toBe('SURAKSHA');
+    expect(src.searched).toEqual(['Suraksha Diagnostic Ltd', 'Suraksha Diagnostic']);
+  });
+
   it('says clearly when nothing Indian matches', async () => {
     const src = fake({ quotes: {}, hits: [{ symbol: 'AAPL', name: 'Apple', exchange: 'NMS' }] });
     await expect(resolveCompany('Apple', src)).rejects.toThrow(/No NSE\/BSE listed company found/);

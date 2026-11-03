@@ -83,7 +83,11 @@ export async function resolveCompany(input: string, src: UpdateSources): Promise
     const q = await src.quote(`${upper}.NS`).catch(() => null);
     if (q && q.price !== null) return { ticker: `${upper}.NS`, symbol: upper, quote: q, matchedBy: 'NSE symbol' };
   }
-  const hits = (await src.search(raw)).filter((h) => /\.(NS|BO)$/.test(h.symbol));
+  const indian = (q: string) => src.search(q).then((r) => r.filter((h) => /\.(NS|BO)$/.test(h.symbol)));
+  let hits = await indian(raw);
+  // "Suraksha Diagnostic Ltd" -> also try "Suraksha Diagnostic": suffixes like Ltd/Limited often spoil the search.
+  const short = raw.replace(/[\s.,]+(ltd|limited|pvt|private|inc|corp(oration)?|co|company)\.?$/gi, '').replace(/[\s.,]+(ltd|limited|pvt|private)\.?$/gi, '').trim();
+  if (!hits.length && short && short !== raw) hits = await indian(short);
   const best = hits.find((h) => h.symbol.endsWith('.NS')) ?? hits[0];
   if (!best) throw new Error(`No NSE/BSE listed company found for "${raw}". Try the exact NSE symbol (e.g. RELIANCE, BEL, HDFCBANK).`);
   const q = await src.quote(best.symbol);
