@@ -100,18 +100,20 @@
 }
 
 /* Dashboard arena: each runner spans the full width, so translateX(%) is a share of the arena width.
-   One 10 s cycle: charge, clash, one step back, the bull moves to the upper lane and the bear to the lower
-   lane so they pass without touching, land in each other's places, turn around, and do it again.
-   --half is about half an animal's width; --lane is how far each moves off the centre line to pass. */
-.arena { position: relative; height: 5.5rem; --half: 24px; --lane: 22px; background-color: #000; animation: arena-shake 10s linear infinite; }
+   One 10 s cycle: charge, clash, one step back, then they cross at the same level like runners on a road:
+   the bear drops into the back lane (smaller and darker, further away) while the bull passes in front.
+   They land in each other's places, turn around, and do it again.
+   --half is about half an animal's width; --lane stays 0 (no jumping), the depth effect does the passing. */
+.arena { position: relative; height: 4rem; --half: 24px; --lane: 0px; background-color: #000; animation: arena-shake 10s linear infinite; }
 .arena-runner { position: absolute; inset: 0; pointer-events: none; }
 .arena-runner img { position: absolute; top: 50%; left: 0; height: 2.35rem; width: auto; transform: translate(-50%, -50%); user-select: none; }
 .arena-ground { position: absolute; left: 4%; right: 4%; top: 50%; height: 1px; background: linear-gradient(90deg, transparent, rgba(47, 125, 255, 0.35), rgba(0, 194, 255, 0.35), rgba(47, 125, 255, 0.35), transparent); }
-.arena-bull { animation: arena-bull 10s ease-in-out infinite; }
-.arena-bear { animation: arena-bear 10s ease-in-out infinite; }
-.arena-bull img, .arena-bear img { animation: arena-turn 10s linear infinite; }
+.arena-bull { z-index: 2; animation: arena-bull 10s ease-in-out infinite; }
+.arena-bear { z-index: 1; animation: arena-bear 10s ease-in-out infinite; }
+.arena-bull img { animation: arena-turn 10s linear infinite; }
+.arena-bear img { animation: arena-bear-depth 10s linear infinite; }
 @media (max-width: 640px) {
-  .arena { height: 4.5rem; --half: 19px; --lane: 18px; }
+  .arena { height: 3.5rem; --half: 19px; --lane: 0px; }
   .arena-runner img { height: 1.85rem; }
 }
 @keyframes arena-bull {
@@ -150,6 +152,17 @@
   49%, 96% { transform: translate(-50%, -50%) scaleX(-1); }
   99%, 100% { transform: translate(-50%, -50%) scaleX(1); }
 }
+/* The bear turns like the bull, and while they cross it steps into the back lane: smaller, a little higher
+   (further away) and darker, so the bull visibly runs past in front instead of jumping over it. */
+@keyframes arena-bear-depth {
+  0%, 21% { transform: translate(-50%, -50%) scale(1, 1); filter: brightness(1); }
+  24%, 36% { transform: translate(-50%, calc(-50% - 5px)) scale(0.78, 0.78); filter: brightness(0.55); }
+  39%, 46% { transform: translate(-50%, -50%) scale(1, 1); filter: brightness(1); }
+  49%, 71% { transform: translate(-50%, -50%) scale(-1, 1); filter: brightness(1); }
+  74%, 86% { transform: translate(-50%, calc(-50% - 5px)) scale(-0.78, 0.78); filter: brightness(0.55); }
+  89%, 96% { transform: translate(-50%, -50%) scale(-1, 1); filter: brightness(1); }
+  99%, 100% { transform: translate(-50%, -50%) scale(1, 1); filter: brightness(1); }
+}
 @keyframes arena-shake {
   0%, 17.5%, 20%, 67.5%, 70%, 100% { transform: translate(0, 0); }
   18% { transform: translate(2px, -1px); }
@@ -166,6 +179,7 @@
   .fight-bear { transform: translateX(12px); }
   .is-won .fight-bear { opacity: 0.25; }
   .arena, .arena-bull, .arena-bear, .arena-bull img, .arena-bear img { animation: none; }
+  .arena-bull img, .arena-bear img { transform: translate(-50%, -50%); }
   .arena-bull { transform: translateX(25%); }
   .arena-bear { transform: translateX(75%); }
 }
