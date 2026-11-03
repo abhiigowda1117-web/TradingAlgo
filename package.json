@@ -18,16 +18,25 @@
     "trade": "tsx src/cli/trade.ts",
     "kite-login": "tsx src/cli/kiteLogin.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "server": "tsx src/server/index.ts",
+    "db:migrate": "tsx src/cli/dbMigrate.ts",
+    "user:create": "tsx src/cli/createUser.ts",
+    "web:install": "npm --prefix web install",
+    "web:dev": "npm --prefix web run dev",
+    "web:build": "npm --prefix web run build"
   },
   "dependencies": {
     "chart.js": "4.4.1",
     "dotenv": "16.4.5",
     "fast-xml-parser": "5.11.2",
+    "pg": "8.13.1",
     "yahoo-finance2": "4.0.4"
   },
   "devDependencies": {
     "@types/node": "24.19.2",
+    "@types/pg": "8.11.10",
+    "pg-mem": "3.0.4",
     "tsx": "4.23.15",
     "typescript": "5.6.3",
     "vitest": "5.0.5"

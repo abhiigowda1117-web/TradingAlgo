@@ -55,6 +55,57 @@ Outputs: `data/watchlist.json` (read by the trading engine) and `reports/<date>/
 
 Banks and NBFCs often have no debt/equity or current ratio on Yahoo. With `"onMissing": "pass"` they are not penalised for missing data; set it to `"fail"` to be strict.
 
+## AlgoTrade website (Phase 1: private, runs on your computer)
+
+A private, password-protected web app (React + Vite + Tailwind frontend, Node REST API, PostgreSQL).
+
+- **Pages:** Dashboard, Company Research, Market Watchlist, Trading Engine, Paper Portfolio, Backtesting, Risk Management, Trade History, Reports and Settings.
+- **Phase 1 data:** the dashboard, watchlist, engine, portfolio, trades, backtest, risk and settings pages show real, read-only data. Research and Reports are placeholders until Phase 2.
+- **It never places orders.** The trading engine still runs separately with `npm run trade`.
+
+### One-time setup (Windows)
+
+1. **Install PostgreSQL (free).** Download the Windows installer from https://www.postgresql.org/download/windows/, run it, and keep the defaults (port 5432). **Write down the password** you set for the `postgres` user.
+2. **Create the database.** Open **SQL Shell (psql)** from the Start menu, press Enter at each prompt, type your password, then run:
+   ```
+   CREATE DATABASE algotrade;
+   ```
+3. **Get the code and install** (in Command Prompt):
+   ```
+   cd %USERPROFILE%\TradingAlgo
+   git fetch
+   git checkout feature/web-platform-foundation
+   npm install
+   npm run web:install
+   ```
+4. **Configure.** Open `.env` with `notepad .env` and add this line, replacing YOURPASSWORD (see `.env.example` for all options):
+   ```
+   DATABASE_URL=postgres://postgres:YOURPASSWORD@localhost:5432/algotrade
+   ```
+5. **Create the tables and your account:**
+   ```
+   npm run db:migrate
+   npm run user:create -- --username yourname
+   ```
+   You'll be asked for a password twice; nothing appears while you type. Use at least 10 characters.
+
+### Run it
+
+```
+npm run web:build
+npm run server
+```
+Open **http://localhost:3001** and sign in. Press Ctrl+C to stop.
+
+For frontend development with live reload, use two windows: `npm run server` in one and `npm run web:dev` in the other, then open http://localhost:5173.
+
+### Security
+- **Passwords:** scrypt-hashed. Sign-in is locked for 15 minutes after 5 failed attempts.
+- **Sessions:** an HttpOnly, SameSite=Strict cookie. The database stores only a SHA-256 of the session ID. Sessions expire after 12 hours.
+- **Requests:** state-changing requests need a CSRF token. CORS allows only `APP_ORIGIN`. The API is limited to 300 requests per 5 minutes per IP address, with strict security headers (CSP, frame denial).
+- **Secrets:** broker keys and the database URL stay in `.env` on the server and are never sent to the browser.
+- **Production:** set `NODE_ENV=production` and `COOKIE_SECURE=true`, and serve the site over HTTPS. Deployment is Phase 3; Phase 1 is for local use.
+
 ## Today's update on one company
 
 ```bash

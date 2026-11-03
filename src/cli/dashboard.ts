@@ -13,7 +13,11 @@ const html = readFileSync(resolve(ROOT, 'src/web/public/index.html'), 'utf8');
 const chartJs = readFileSync(resolve(ROOT, 'node_modules/chart.js/dist/chart.umd.js'), 'utf8');
 createDashboardServer({
   html,
-  assets: { '/vendor/chart.umd.js': { body: chartJs, type: 'text/javascript; charset=utf-8' } },
+  assets: {
+    '/vendor/chart.umd.js': { body: chartJs, type: 'text/javascript; charset=utf-8' },
+    '/research.js': { body: readFileSync(resolve(ROOT, 'src/web/public/research.js'), 'utf8'), type: 'text/javascript; charset=utf-8' },
+    '/dashboard.js': { body: readFileSync(resolve(ROOT, 'src/web/public/dashboard.js'), 'utf8'), type: 'text/javascript; charset=utf-8' },
+  },
   research: (symbol, peers) => researchCompany(symbol, sources, { peers }),
 })
   .listen(port, '127.0.0.1', () => console.log(`Research dashboard: http://localhost:${port}  (Ctrl+C to stop)`))

@@ -205,6 +205,13 @@ export class LiveUpdateSources implements UpdateSources {
     return one ? mapQuote(one as unknown as Record<string, unknown>) : null;
   }
 
+  /** Several tickers in one request (used by the market overview). Missing tickers are simply absent. */
+  async quotes(tickers: string[]) {
+    if (!tickers.length) return [];
+    const q = await withRateLimitRetry(`quotes (${tickers.length})`, () => this.yf.quote(tickers, {}, { validateResult: false }));
+    return (Array.isArray(q) ? q : [q]).map((x) => mapQuote(x as unknown as Record<string, unknown>));
+  }
+
   async search(query: string) {
     const r = await withRateLimitRetry(`search ${query}`, () => this.yf.search(query, { quotesCount: 10, newsCount: 0 }, { validateResult: false }));
     const quotes = ((r as unknown as { quotes?: Record<string, unknown>[] }).quotes ?? []).filter((x) => typeof x.symbol === 'string');

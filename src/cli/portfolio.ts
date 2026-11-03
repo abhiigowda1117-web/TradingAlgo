@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { writeJsonAtomic } from '../util/fs';
 import { loadStudyConfig, loadTradingConfig, ROOT } from '../config';
 import { cachedCandles } from '../data/candleCache';
 import { membershipFilter, readConstituents } from '../data/constituents';
@@ -17,7 +18,8 @@ import { parseArgs, symbolList } from './args';
 //   npm run portfolio -- --constituents data/nifty50_members.csv     # point-in-time universe (symbol,from,to)
 //   npm run portfolio -- --benchmark-csv data/NIFTY50_TRI.csv --benchmark-type TRI
 //   npm run portfolio -- --csv-dir mydata                # offline: <SYMBOL>.csv files + NIFTY50.csv
-//   add --trades to list every trade, --refresh to re-download cached prices
+//   add --trades to list every trade, --refresh to re-download cached prices,
+//   --json <file> to also save the results (used by the web app's Backtest tab)
 const { flags, opts } = parseArgs();
 const cfg = loadTradingConfig();
 const today = istParts(new Date()).date;
@@ -175,3 +177,28 @@ Limitations (read before drawing conclusions):
 - The live engine trades near 15:10 on the same day; this backtest fills at the next open, which is more conservative.
 - Training/test split at ${split}: parameters were not tuned on this data. Any future tuning must use only the training period.
 - One historical path is not proof of an edge.`);
+
+if (opts.json) {
+  const s = (a: string, b: string) => {
+    const base = a === first ? capital : undefined;
+    return { strategy: summarizeStrategy(result, a, b, base), benchmark: summarizeCurve('NIFTY 50', bench.curve, a, b, base) };
+  };
+  const step = Math.max(1, Math.floor(result.curve.length / 400));
+  writeJsonAtomic(opts.json, {
+    generatedAt: new Date().toISOString(),
+    period: { from: first, to: last, split, tradingDays: result.calendar.length },
+    universe: { count: Object.keys(candles).length, source: universeSource, missing },
+    benchmark: { label: benchLabel, kind: benchKind, filledDays: aligned.filledDays.length },
+    settings: { capital, maxOpenPositions: cfg.risk.maxOpenPositions, riskPerTrade: cfg.risk.riskPerTrade, slippagePct: cfg.backtest.slippagePct },
+    periods: periods.map(([label, a, b]) => ({ label, ...s(a, b) })),
+    liquidation: { strategy: result.liquidationValue, benchmark: bench.liquidationValue },
+    costs: result.costs,
+    benchmarkCosts: { buy: bench.buyCosts, sell: bench.sellCosts },
+    open: result.open,
+    skipped: skippedBy,
+    trades: result.trades,
+    curve: result.curve.filter((_, i) => i % step === 0 || i === result.curve.length - 1).map((p, i) => ({ day: p.day, strategy: p.equity, benchmark: bench.curve[result.curve.indexOf(p)]!.equity })),
+    survivorshipBias: !members,
+  });
+  console.log(`\nResults saved to ${opts.json}`);
+}

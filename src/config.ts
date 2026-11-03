@@ -16,6 +16,9 @@ export const paths = {
   reports: resolve(ROOT, 'reports'),
   engineLog: resolve(ROOT, 'logs/engine.log'),
   killSwitch: resolve(ROOT, 'STOP'),
+  heartbeat: resolve(ROOT, 'data/heartbeat.json'),
+  backtestResult: resolve(ROOT, 'data/backtests/latest.json'),
+  jobsLog: resolve(ROOT, 'logs/jobs'),
 };
 
 export type CompareOp = '>' | '>=' | '<' | '<=';

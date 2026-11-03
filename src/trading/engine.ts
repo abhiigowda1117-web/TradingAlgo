@@ -97,6 +97,8 @@ export interface EnginePaths {
   state: string;
   trades: string;
   killSwitch: string;
+  /** Optional: written after every tick so a dashboard can tell whether the engine is alive. */
+  heartbeat?: string;
 }
 
 export interface EngineDeps {
@@ -166,9 +168,12 @@ export class Engine {
     let consecutiveErrors = 0;
     for (;;) {
       try {
-        if ((await this.tick()) === 'stopped') return;
+        const result = await this.tick();
+        this.beat(result);
+        if (result === 'stopped') return;
         consecutiveErrors = 0;
       } catch (e) {
+        this.beat('error', (e as Error).message);
         log.error(`Tick failed: ${(e as Error).message}`);
         if (isAuthError(e)) {
           log.error('Broker session is invalid or expired. Run `npm run kite-login`, update KITE_ACCESS_TOKEN, and restart. Exchange stop orders placed today stay live.');
@@ -177,6 +182,16 @@ export class Engine {
         if (++consecutiveErrors >= 10) log.error(`${consecutiveErrors} consecutive failures; check connectivity and the broker`);
       }
       await this.wait(this.d.cfg.engine.pollSeconds * 1000);
+    }
+  }
+
+  /** Records that the engine is alive (information only; never read back by the engine). */
+  private beat(result: string, error?: string) {
+    if (!this.d.paths.heartbeat) return;
+    try {
+      writeJsonAtomic(this.d.paths.heartbeat, { at: this.now().toISOString(), result, error, broker: this.d.broker.name, pid: process.pid });
+    } catch (e) {
+      log.warn(`Could not write heartbeat: ${(e as Error).message}`);
     }
   }
 
