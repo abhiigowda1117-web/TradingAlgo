@@ -75,9 +75,9 @@ export function MarketPulse({ market, movers }: { market: MarketOverview | null;
             <span className="text-down">{down} down</span>
           </div>
           <div className="flex h-1.5 overflow-hidden rounded-full bg-ink-700" role="img" aria-label={`${up} large caps up, ${down} down, ${flat} flat`}>
-            <div className="bg-up shadow-[0_0_8px_#3db8ff]" style={{ width: `${(up / total) * 100}%` }} />
+            <div className="bg-up shadow-[0_0_8px_#22c55e]" style={{ width: `${(up / total) * 100}%` }} />
             <div className="bg-slate-600" style={{ width: `${(flat / total) * 100}%` }} />
-            <div className="bg-down shadow-[0_0_8px_#ff2d78]" style={{ width: `${(down / total) * 100}%` }} />
+            <div className="bg-down shadow-[0_0_8px_#ef4444]" style={{ width: `${(down / total) * 100}%` }} />
           </div>
         </div>
       )}

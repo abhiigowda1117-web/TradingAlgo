@@ -36,8 +36,8 @@
   }
   .led { font-family: theme('fontFamily.led'); font-weight: 800; letter-spacing: 0.04em; font-variant-numeric: tabular-nums; }
   .led-sym { color: #dce8ff; text-shadow: 0 0 6px rgba(120, 170, 255, 0.45); }
-  .led-up { color: #3db8ff; text-shadow: 0 0 7px rgba(61, 184, 255, 0.65); }
-  .led-down { color: #ff2d78; text-shadow: 0 0 7px rgba(255, 45, 120, 0.65); }
+  .led-up { color: #39ff7a; text-shadow: 0 0 7px rgba(57, 255, 122, 0.6); }
+  .led-down { color: #ff3b3b; text-shadow: 0 0 7px rgba(255, 59, 59, 0.65); }
   .led-rose { color: #ff6fa5; text-shadow: 0 0 8px rgba(255, 45, 120, 0.6); }
   .led-dim { color: #8a8a8a; }
   .led-row { @apply grid cursor-pointer grid-cols-[1.3rem_minmax(0,1fr)_auto_auto] items-baseline gap-x-2 sm:grid-cols-[1.6rem_minmax(0,1fr)_auto_auto] sm:gap-x-3 border-b border-white/5 px-1 py-1.5 transition-colors hover:bg-white/5; }
@@ -55,10 +55,10 @@
   .led-flash, .led-blink { animation: none; }
 }
 
-/* Neon line art (bull and bear). */
-.neon { filter: drop-shadow(0 0 3px currentColor) drop-shadow(0 0 8px currentColor); transition: opacity 0.4s, filter 0.4s; }
-.neon-dim { opacity: 0.3; filter: none; }
-.neon-pulse { animation: neon-pulse 2.4s ease-in-out infinite; }
-@keyframes neon-pulse { 50% { filter: drop-shadow(0 0 2px currentColor) drop-shadow(0 0 14px currentColor); } }
-@media (prefers-reduced-motion: reduce) { .neon-pulse { animation: none; } }
+/* Bull and bear images: soft glow on the one that matches today's NIFTY move. */
+.mascot-bull { filter: drop-shadow(0 0 6px rgba(34, 197, 94, 0.75)); }
+.mascot-bear { filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.75)); }
+.mascot-glow { animation: mascot-pulse 2.4s ease-in-out infinite; }
+@keyframes mascot-pulse { 50% { transform: scale(1.06); } }
+@media (prefers-reduced-motion: reduce) { .mascot-glow { animation: none; } }
 .thin-scroll { scrollbar-width: thin; scrollbar-color: #1c2340 transparent; }
