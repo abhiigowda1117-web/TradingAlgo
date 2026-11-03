@@ -19,7 +19,7 @@ function Mascot({ src, glow, active, title }: { src: string; glow: string; activ
       alt={title}
       title={title}
       draggable={false}
-      className={`h-11 w-auto shrink-0 select-none transition duration-500 ${active ? `mascot-glow ${glow}` : ''}`}
+      className={`h-9 w-8 shrink-0 select-none object-contain sm:h-11 sm:w-10 transition duration-500 ${active ? `mascot-glow ${glow}` : ''}`}
     />
   );
 }

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
+import { BullBearFight } from '../components/BullBearFight';
 import { Bars, TimeChart } from '../components/TimeChart';
 import { Badge, Card, Empty, ErrorBox, PageHeader } from '../components/ui';
 import { api } from '../lib/api';
@@ -237,6 +238,7 @@ export function Research() {
   const [report, setReport] = useState<ResearchReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [won, setWon] = useState(false);
   const recent = useApi<SavedResearch[]>('/api/research/recent');
 
   async function run(q: string, p: string, refresh: boolean) {
@@ -247,7 +249,13 @@ export function Research() {
     if (p.trim()) qs.set('peers', p.trim().toUpperCase());
     if (refresh) qs.set('refresh', '1');
     try {
-      setReport(await api<ResearchReport>(`/api/research?${qs}`));
+      const r = await api<ResearchReport>(`/api/research?${qs}`);
+      // Finale: the bull wins, then the report opens (skipped when the user prefers reduced motion).
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        setWon(true);
+        await new Promise((res) => setTimeout(res, 1700));
+      }
+      setReport(r);
       setParams(Object.fromEntries([...qs].filter(([k]) => k !== 'refresh')), { replace: true });
       void recent.reload();
     } catch (e) {
@@ -256,6 +264,7 @@ export function Research() {
       setError(msg === 'Not found' ? 'The server is running an older version without Company Research. Stop it (Ctrl + C) and start it again with: npm.cmd run server' : msg);
     } finally {
       setBusy(false);
+      setWon(false);
     }
   }
 
@@ -298,7 +307,7 @@ export function Research() {
         )}
       </Card>
       <div className="mt-4">
-        {busy && <p className="py-8 text-center text-sm text-slate-400">Researching… this takes 10–40 seconds (profile, statements, prices, news, NSE announcements and peers).</p>}
+        {busy && <BullBearFight finished={won} label={won ? 'Report ready.' : 'Researching… this takes 10–40 seconds (profile, statements, prices, news, NSE announcements and peers).'} />}
         {!busy && error && <ErrorBox message={error} />}
         {!busy && !error && report && <Report r={report} />}
         {!busy && !error && !report && <Empty>Type a company and click Analyze. Example: <b>Reliance</b>, <b>Bharat Electronics</b> or <b>TCS</b>.</Empty>}

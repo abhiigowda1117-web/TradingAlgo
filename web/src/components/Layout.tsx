@@ -80,8 +80,8 @@ export function Layout() {
           <button className="btn-ghost lg:hidden" aria-label="Open menu" onClick={() => setOpen(true)}>
             <Icon name="menu" className="h-4 w-4" />
           </button>
-          <span className="truncate text-sm font-medium text-slate-300">{title}</span>
-          <div className="ml-auto flex items-center gap-3">
+          <span className="min-w-0 truncate text-sm font-medium text-slate-300">{title}</span>
+          <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
             <Badge color={tradingMode === 'live' ? 'red' : 'blue'}>{tradingMode === 'live' ? 'LIVE MODE CONFIGURED' : 'PAPER'}</Badge>
             <span className="hidden text-sm text-slate-400 sm:inline">{username}</span>
             <button className="btn-ghost" onClick={() => void logout()}>

@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { BullBearFight } from './BullBearFight';
 
 export function Card({ title, action, children, className = '' }: { title?: ReactNode; action?: ReactNode; children: ReactNode; className?: string }) {
   return (
@@ -36,8 +37,14 @@ export function Badge({ color = 'gray', children }: { color?: keyof typeof BADGE
   return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${BADGE[color]}`}>{children}</span>;
 }
 
+/** Small bull-vs-bear fight while data loads. Waits 300 ms first so fast loads don't flash it. */
 export function Loading({ label = 'Loading…' }: { label?: string }) {
-  return <p className="py-6 text-center text-sm text-slate-500">{label}</p>;
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setShow(true), 300);
+    return () => clearTimeout(t);
+  }, []);
+  return show ? <BullBearFight size="sm" label={label} /> : <div className="h-32" aria-hidden="true" />;
 }
 
 export function ErrorBox({ message }: { message: string }) {
