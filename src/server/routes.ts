@@ -1,6 +1,6 @@
 import { loadWatchlist } from '../study/watchlist';
 import type { QuoteSnapshot } from '../research/companyUpdate';
-import { LARGE_CAPS, marketMovers, marketOverview, type MarketMovers, type MarketOverview } from '../research/market';
+import { LARGE_CAPS, marketMovers, marketOverview, sessionStatus, type MarketMovers, type MarketOverview } from '../research/market';
 import type { ResearchReport } from '../research/research';
 import type { ResearchRepo } from './db/repositories';
 import type { TradingConfig } from '../config';
@@ -70,6 +70,19 @@ export function apiRoutes(d: RouteDeps): ApiRoutes {
       } catch (e) {
         throw new HttpError(502, `Market data unavailable from Yahoo Finance (${(e as Error).message}). Try again in a few minutes.`);
       }
+    },
+    '/api/quote': async (q) => {
+      const symbol = (q.get('symbol') ?? '').trim().toUpperCase();
+      if (!PEER_SYMBOL.test(symbol)) throw new HttpError(400, 'symbol must be an NSE symbol, e.g. RELIANCE');
+      let rows: QuoteSnapshot[];
+      try {
+        rows = await d.quotes([`${symbol}.NS`]);
+      } catch (e) {
+        throw new HttpError(502, `Price unavailable from Yahoo Finance (${(e as Error).message}). Trying again shortly.`);
+      }
+      const row = rows.find((r) => r.ticker === `${symbol}.NS`);
+      if (!row || row.price === null) throw new HttpError(404, `No price available for ${symbol} right now`);
+      return { symbol, ...row, session: sessionStatus(now(), d.tradingConfig.engine.holidays), fetchedAt: now().toISOString(), dataNote: 'Yahoo Finance quote, delayed by about 15 minutes; not real-time.' };
     },
     '/api/watchlist': () => {
       const wl = loadWatchlist(d.files.watchlist);

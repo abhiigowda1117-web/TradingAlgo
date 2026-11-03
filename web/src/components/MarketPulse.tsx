@@ -45,7 +45,7 @@ export function MarketPulse({ market, movers }: { market: MarketOverview | null;
   return (
     <div className="mx-1 mt-4 rounded-xl border border-ink-700/80 bg-black/60 p-3 text-xs shadow-[inset_0_0_20px_rgba(47,125,255,0.06)]">
       <div className="flex items-center justify-between">
-        <span className="font-semibold uppercase tracking-wider text-rose-soft">Market pulse</span>
+        <span className="font-semibold uppercase tracking-wider text-glow-soft">Market pulse</span>
         <span className={`led text-[11px] ${open ? 'led-up' : 'led-down'}`}>{open ? <><span className="led-blink">●</span> OPEN</> : '● CLOSED'}</span>
       </div>
       <div className="mt-2 flex items-baseline justify-between">

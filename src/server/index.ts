@@ -38,7 +38,11 @@ const quoteCaches = new Map<string, () => ReturnType<LiveUpdateSources['quotes']
 const quotes = (tickers: string[]) => {
   const key = [...tickers].sort().join(',');
   let c = quoteCaches.get(key);
-  if (!c) quoteCaches.set(key, (c = cached(60_000, () => sources.quotes(tickers))));
+  if (!c) {
+    if (quoteCaches.size > 500) quoteCaches.clear(); // bound memory: one entry per distinct ticker set
+    // 20 s: fresh enough for the 30-second live price on the research page; views add their own caching.
+    quoteCaches.set(key, (c = cached(20_000, () => sources.quotes(tickers))));
+  }
   return c();
 };
 

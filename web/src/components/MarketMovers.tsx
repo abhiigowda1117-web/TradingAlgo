@@ -76,7 +76,7 @@ export function MoversBoard({ data, error }: { data: Movers | null; error: strin
   return (
     <section aria-label="Top gainers and losers">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs">
-        <h2 className="led led-rose text-lg tracking-widest sm:text-xl">MARKET MOVERS</h2>
+        <h2 className="led led-blue text-lg tracking-widest sm:text-xl">MARKET MOVERS</h2>
         {data && (
           <span className="led flex items-center gap-3 text-sm">
             {data.session.open ? (

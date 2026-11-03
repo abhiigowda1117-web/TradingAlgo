@@ -89,7 +89,7 @@ async function signIn(base: string) {
   return { res, cookie: cookie.split(';')[0]!, setCookie: cookie, csrfToken };
 }
 
-const PROTECTED = ['/api/market/movers', '/api/research/recent', '/api/auth/me', '/api/dashboard/summary', '/api/engine/status', '/api/market/overview', '/api/watchlist', '/api/trades', '/api/backtest/latest', '/api/settings'];
+const PROTECTED = ['/api/quote?symbol=INFY', '/api/market/movers', '/api/research/recent', '/api/auth/me', '/api/dashboard/summary', '/api/engine/status', '/api/market/overview', '/api/watchlist', '/api/trades', '/api/backtest/latest', '/api/settings'];
 
 describe('passwords', () => {
   it('hashes with scrypt, verifies, and rejects short passwords', async () => {
@@ -448,5 +448,25 @@ describe('market movers board', () => {
     const bad = await fetch(`${b2}/api/market/movers`, { headers: { Cookie: s2.cookie } });
     expect(bad.status).toBe(502);
     expect((await bad.json()).error).toMatch(/Yahoo Finance \(Yahoo 429\)/);
+  });
+});
+
+describe('live quote for the research page', () => {
+  it('validates the symbol, returns the delayed quote with the session, and maps outages to 502', async () => {
+    const { f, dir } = engineFixture();
+    const calls: string[][] = [];
+    const ok = apiRoutes({ files: f, backtestResult: join(dir, 'x.json'), tradingConfig: tradingCfg, env: {}, now: () => new Date('2026-11-03T05:00:00Z'), quotes: async (t) => (calls.push(t), t.map((x) => quote(x, 1720.5))) });
+    const s = { userId: 1, username: 'owner', csrfToken: 'x', expiresAt: new Date() };
+    const r = (await ok['/api/quote']!(new URLSearchParams({ symbol: 'bajajfinsv' }), s)) as { symbol: string; price: number; changePct: number; session: { open: boolean }; dataNote: string };
+    expect(r).toMatchObject({ symbol: 'BAJAJFINSV', price: 1720.5, changePct: 0.5, session: { open: true } });
+    expect(r.dataNote).toMatch(/delayed by about 15 minutes; not real-time/);
+    expect(calls).toEqual([['BAJAJFINSV.NS']]);
+    for (const bad of ['', '../etc', 'A B', 'X'.repeat(21)]) {
+      await expect(Promise.resolve(ok['/api/quote']!(new URLSearchParams({ symbol: bad }), s))).rejects.toMatchObject({ status: 400 });
+    }
+    const down = apiRoutes({ files: f, backtestResult: join(dir, 'x.json'), tradingConfig: tradingCfg, env: {}, quotes: async () => { throw new Error('fetch failed'); } });
+    await expect(Promise.resolve(down['/api/quote']!(new URLSearchParams({ symbol: 'TCS' }), s))).rejects.toMatchObject({ status: 502 });
+    const none = apiRoutes({ files: f, backtestResult: join(dir, 'x.json'), tradingConfig: tradingCfg, env: {}, quotes: async () => [] });
+    await expect(Promise.resolve(none['/api/quote']!(new URLSearchParams({ symbol: 'NOPE' }), s))).rejects.toMatchObject({ status: 404 });
   });
 });

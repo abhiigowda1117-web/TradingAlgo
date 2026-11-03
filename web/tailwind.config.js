@@ -8,7 +8,7 @@ export default {
         up: '#22c55e',
         down: '#ef4444',
         accent: '#2f7dff',
-        rose: { DEFAULT: '#ff2d78', soft: '#ff6fa5' },
+        glow: { DEFAULT: '#00c2ff', soft: '#7cc4ff' },
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],

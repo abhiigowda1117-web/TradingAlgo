@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
+import { BullBearArena } from '../components/BullBearFight';
 import { EquityChart } from '../components/EquityChart';
 import { MoversBoard, moversRefreshMs, TickerTape } from '../components/MarketMovers';
 import { Badge, Card, Empty, ErrorBox, Loading, Stat } from '../components/ui';
@@ -21,6 +22,7 @@ export function Dashboard() {
 
   return (
     <div className="space-y-4">
+      <BullBearArena />
       <TickerTape data={movers.data} />
       {summary.error && <ErrorBox message={summary.error} />}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -84,7 +86,7 @@ export function Dashboard() {
             <>
               <EquityChart
                 series={[
-                  { label: 'Strategy', color: '#ff2d78', points: summary.data.backtest.curve.map((p) => ({ time: p.day, value: p.strategy })) },
+                  { label: 'Strategy', color: '#3db8ff', points: summary.data.backtest.curve.map((p) => ({ time: p.day, value: p.strategy })) },
                   { label: 'NIFTY 50', color: '#94a3b8', points: summary.data.backtest.curve.map((p) => ({ time: p.day, value: p.benchmark })) },
                 ]}
               />

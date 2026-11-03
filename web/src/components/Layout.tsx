@@ -3,7 +3,6 @@ import { NavLink, Outlet, useLocation } from 'react-router';
 import { useAuth } from '../lib/auth';
 import type { MarketMovers, MarketOverview } from '../lib/types';
 import { useApi } from '../lib/useApi';
-import { Bear, Bull, marketMood } from './BullBear';
 import { Icon } from './icons';
 import { MarketPulse } from './MarketPulse';
 import { Badge } from './ui';
@@ -28,7 +27,7 @@ function Sidebar({ onNavigate, pulse }: { onNavigate?: () => void; pulse: Pulse 
     <nav className="thin-scroll flex h-full flex-col gap-0.5 overflow-y-auto p-3" aria-label="Main">
       <div className="mb-3 flex items-center gap-2 px-2 pt-1">
         <img src="/favicon.svg" alt="" className="h-7 w-7" />
-        <span className="bg-gradient-to-r from-accent to-rose bg-clip-text text-lg font-bold tracking-wide text-transparent">AlgoTrade</span>
+        <span className="bg-gradient-to-r from-accent to-glow bg-clip-text text-lg font-bold tracking-wide text-transparent">AlgoTrade</span>
       </div>
       {NAV.map((n) => (
         <NavLink
@@ -37,7 +36,7 @@ function Sidebar({ onNavigate, pulse }: { onNavigate?: () => void; pulse: Pulse 
           end={n.to === '/'}
           onClick={onNavigate}
           className={({ isActive }) =>
-            `flex items-center gap-3 rounded-lg border-l-2 px-3 py-1.5 text-sm transition ${isActive ? 'border-rose bg-gradient-to-r from-accent/20 to-transparent font-medium text-white shadow-[inset_0_0_12px_rgba(47,125,255,0.15)]' : 'border-transparent text-slate-400 hover:bg-ink-850 hover:text-slate-200'}`
+            `flex items-center gap-3 rounded-lg border-l-2 px-3 py-1.5 text-sm transition ${isActive ? 'border-glow bg-gradient-to-r from-accent/20 to-transparent font-medium text-white shadow-[inset_0_0_12px_rgba(47,125,255,0.15)]' : 'border-transparent text-slate-400 hover:bg-ink-850 hover:text-slate-200'}`
           }
         >
           <Icon name={n.icon} className="h-4 w-4" />
@@ -56,9 +55,6 @@ export function Layout() {
   const market = useApi<MarketOverview>('/api/market/overview', 120_000);
   const movers = useApi<MarketMovers>('/api/market/movers', 120_000);
   const pulse: Pulse = { market: market.data, movers: movers.data };
-  const nifty = market.data?.indices.find((i) => i.ticker === '^NSEI')?.changePct ?? null;
-  const mood = marketMood(nifty);
-  const moodText = nifty === null ? '' : ` (NIFTY 50 ${nifty >= 0 ? '+' : ''}${nifty.toFixed(2)}% today)`;
   const title = NAV.find((n) => (n.to === '/' ? loc.pathname === '/' : loc.pathname.startsWith(n.to)))?.label ?? 'AlgoTrade';
 
   return (
@@ -75,8 +71,7 @@ export function Layout() {
         </div>
       )}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-ink-800 bg-black/85 px-3 shadow-[0_1px_0_rgba(255,45,120,0.15)] backdrop-blur sm:gap-3 sm:px-4">
-          <Bull mood={mood} title={`Bull${mood === 'bull' ? ': bulls lead today' : ''}${moodText}`} />
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-ink-800 bg-black/85 px-3 shadow-[0_1px_0_rgba(0,194,255,0.18)] backdrop-blur sm:gap-3 sm:px-4">
           <button className="btn-ghost lg:hidden" aria-label="Open menu" onClick={() => setOpen(true)}>
             <Icon name="menu" className="h-4 w-4" />
           </button>
@@ -88,7 +83,6 @@ export function Layout() {
               <Icon name="logout" className="h-4 w-4" />
               <span className="hidden sm:inline">Sign out</span>
             </button>
-            <Bear mood={mood} title={`Bear${mood === 'bear' ? ': bears lead today' : ''}${moodText}`} />
           </div>
         </header>
         <main className="mx-auto w-full max-w-7xl flex-1 p-4 lg:p-6">

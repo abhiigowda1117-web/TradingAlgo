@@ -70,6 +70,73 @@ function Bullets({ items }: { items: Interp[] }) {
   );
 }
 
+interface LiveQuote {
+  symbol: string;
+  price: number | null;
+  change: number | null;
+  changePct: number | null;
+  previousClose: number | null;
+  open: number | null;
+  dayHigh: number | null;
+  dayLow: number | null;
+  volume: number | null;
+  high52: number | null;
+  low52: number | null;
+  time: string | null;
+  fetchedAt: string;
+  session: { open: boolean; label: string };
+}
+
+/** 30-second poll. Both header parts call it; the server caches quotes for 20 s, so Yahoo sees one request. */
+const useLiveQuote = (symbol: string) => useApi<LiveQuote>(`/api/quote?symbol=${encodeURIComponent(symbol)}`, 30_000);
+const clock = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) : '--:--:--');
+
+/** Price with today's gain or loss, refreshed every 30 seconds. Delayed quotes, labelled as such. */
+function LivePrice({ symbol, fallback, fallbackTime }: { symbol: string; fallback: number | null; fallbackTime: string | null }) {
+  const { data: q, error } = useLiveQuote(symbol);
+  const price = q?.price ?? fallback;
+  const up = (q?.change ?? 0) >= 0;
+  return (
+    <div className="text-right">
+      <div key={price ?? 'na'} className="led-flash rounded-md px-1 text-3xl font-semibold tabular-nums">{fmt(price, 'INR/share')}</div>
+      {q && q.change !== null && q.changePct !== null ? (
+        <div className={`text-base font-semibold tabular-nums ${up ? 'text-up' : 'text-down'}`}>
+          {up ? '▲' : '▼'} {up ? '+' : '−'}₹{Math.abs(q.change).toFixed(2)} ({up ? '+' : '−'}{Math.abs(q.changePct).toFixed(2)}%) <span className="text-xs font-normal text-slate-500">today</span>
+        </div>
+      ) : (
+        <div className="text-xs text-slate-500">{error ? `Live price unavailable: ${error}` : 'Loading live price…'}</div>
+      )}
+      <div className="mt-0.5 flex items-center justify-end gap-1.5 text-xs text-slate-500">
+        {q?.session.open ? <span className="led-blink text-up">●</span> : <span className="text-slate-600">●</span>}
+        {q ? `Updated ${clock(q.fetchedAt)} IST · refreshes every 30 s` : istTime(fallbackTime)} · delayed ~15 min{q && !q.session.open ? ' · market closed' : ''}
+      </div>
+    </div>
+  );
+}
+
+function LiveStats({ symbol }: { symbol: string }) {
+  const { data: q } = useLiveQuote(symbol);
+  if (!q) return null;
+  const cells: [string, string][] = [
+    ['Open', fmt(q.open, 'INR/share')],
+    ['Prev. close', fmt(q.previousClose, 'INR/share')],
+    ['Day low', fmt(q.dayLow, 'INR/share')],
+    ['Day high', fmt(q.dayHigh, 'INR/share')],
+    ['Volume', q.volume === null ? NA : q.volume.toLocaleString('en-IN')],
+    ['52-week range', q.low52 === null || q.high52 === null ? NA : `${fmt(q.low52, 'INR/share')} – ${fmt(q.high52, 'INR/share')}`],
+  ];
+  return (
+    <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+      {cells.map(([k, v]) => (
+        <div key={k} className="rounded-lg border border-ink-700/60 bg-ink-850 px-3 py-2">
+          <dt className="text-[11px] uppercase tracking-wide text-slate-500">{k}</dt>
+          <dd className="text-sm font-medium tabular-nums text-slate-200">{v}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 function Report({ r }: { r: ResearchReport }) {
   const f = r.fundamentals;
   const t = r.technicals;
@@ -77,8 +144,8 @@ function Report({ r }: { r: ResearchReport }) {
     () => (t ? [
       { label: 'Close', color: '#e2e8f0', width: 2 as const, points: t.series.map((p) => ({ time: p.date, value: p.close })) },
       { label: 'EMA 20', color: '#3db8ff', points: t.series.filter((p) => p.ema20 !== null).map((p) => ({ time: p.date, value: p.ema20! })) },
-      { label: 'EMA 50', color: '#ff2d78', points: t.series.filter((p) => p.ema50 !== null).map((p) => ({ time: p.date, value: p.ema50! })) },
-      { label: 'EMA 200', color: '#a78bfa', points: t.series.filter((p) => p.ema200 !== null).map((p) => ({ time: p.date, value: p.ema200! })) },
+      { label: 'EMA 50', color: '#1e5bff', points: t.series.filter((p) => p.ema50 !== null).map((p) => ({ time: p.date, value: p.ema50! })) },
+      { label: 'EMA 200', color: '#94a3b8', points: t.series.filter((p) => p.ema200 !== null).map((p) => ({ time: p.date, value: p.ema200! })) },
     ] : []),
     [t],
   );
@@ -89,7 +156,7 @@ function Report({ r }: { r: ResearchReport }) {
   const macdLines = useMemo(
     () => (t ? [
       { label: 'MACD', color: '#3db8ff', points: t.series.filter((p) => p.macd !== null).map((p) => ({ time: p.date, value: p.macd! })) },
-      { label: 'Signal', color: '#ff2d78', points: t.series.filter((p) => p.signal !== null).map((p) => ({ time: p.date, value: p.signal! })) },
+      { label: 'Signal', color: '#94a3b8', points: t.series.filter((p) => p.signal !== null).map((p) => ({ time: p.date, value: p.signal! })) },
     ] : []),
     [t],
   );
@@ -104,11 +171,9 @@ function Report({ r }: { r: ResearchReport }) {
             <h2 className="text-xl font-semibold">{r.overview.name ?? r.symbol} <span className="text-base font-normal text-slate-400">NSE: {r.symbol}</span></h2>
             <p className="text-sm text-slate-400">{[r.overview.sector, r.overview.industry].filter(Boolean).join(' · ') || 'Sector Not Available'}</p>
           </div>
-          <div className="text-right">
-            <div className="text-2xl font-semibold tabular-nums">{fmt(r.overview.price, 'INR/share')}</div>
-            <div className="text-xs text-slate-500">{istTime(r.overview.priceTime)} · delayed, not real-time</div>
-          </div>
+          <LivePrice symbol={r.symbol} fallback={r.overview.price} fallbackTime={r.overview.priceTime} />
         </div>
+        <LiveStats symbol={r.symbol} />
         <p className="mt-3 text-xs text-slate-500">Report generated {istTime(r.generatedAt)}{r.cached ? ' (cached, tick “Fresh data” to reload)' : ''}. {r.disclaimer}</p>
         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-400">
           Labels: <Kind k="reported" /> from a source as-is · <Kind k="calculated" /> derived here, formula shown · <Kind k="estimate" /> forecast · <Interpretation /> rule-based reading · <Kind k="unavailable" /> no data
