@@ -1,13 +1,15 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { loadTradingConfig, paths, ROOT } from '../config';
-import { LiveUpdateSources } from '../research/companyUpdate';
+import { LiveUpdateSources, resolveCompany } from '../research/companyUpdate';
+import { researchCompany } from '../research/research';
+import { LiveResearchSources } from '../research/sources';
 import { registerSecret } from '../util/log';
 import { createApp } from './app';
 import { loadServerConfig } from './config';
 import { migrate, poolTarget } from './db/migrate';
 import { createPool } from './db/pool';
-import { SessionRepo, SystemLogRepo, UserRepo } from './db/repositories';
+import { ResearchRepo, SessionRepo, SystemLogRepo, UserRepo } from './db/repositories';
 import { apiRoutes, cached } from './routes';
 
 // Usage: npm run server   (API on http://localhost:3001; also serves web/dist when built)
@@ -31,6 +33,7 @@ if ((await users.count()) === 0) console.warn('No owner account yet. Create one:
 setInterval(() => sessions.purgeExpired().catch(() => undefined), 3_600_000).unref();
 
 const sources = new LiveUpdateSources();
+const researchSources = new LiveResearchSources();
 const quoteCaches = new Map<string, () => ReturnType<LiveUpdateSources['quotes']>>();
 const quotes = (tickers: string[]) => {
   const key = [...tickers].sort().join(',');
@@ -51,7 +54,20 @@ const app = createApp({
   tradingMode,
   version,
   staticDir: cfg.staticDir,
-  routes: apiRoutes({ files: paths, backtestResult: paths.backtestResult, tradingConfig: loadTradingConfig(), env: process.env, quotes }),
+  routes: apiRoutes({
+    files: paths,
+    backtestResult: paths.backtestResult,
+    tradingConfig: loadTradingConfig(),
+    env: process.env,
+    quotes,
+    researchRepo: new ResearchRepo(pool),
+    research: async (query, peers) => {
+      // Accept a company name or symbol; research needs an NSE listing.
+      const { ticker, symbol } = await resolveCompany(query, sources);
+      if (!ticker.endsWith('.NS')) throw new Error(`${query} resolves to a BSE-only listing (${ticker}); research covers NSE-listed companies. Check the NSE symbol.`);
+      return researchCompany(symbol, researchSources, { peers });
+    },
+  }),
 });
 app.listen(cfg.port, cfg.host, () => {
   console.log(`AlgoTrade server on http://${cfg.host === '127.0.0.1' ? 'localhost' : cfg.host}:${cfg.port}  (trading mode shown: ${tradingMode}; this server never places orders)`);

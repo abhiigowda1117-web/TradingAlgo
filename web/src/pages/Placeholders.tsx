@@ -3,15 +3,6 @@ import { inr, pct } from '../lib/format';
 import type { Settings } from '../lib/types';
 import { useApi } from '../lib/useApi';
 
-export const Research = () => (
-  <ComingSoon
-    title="Company Research"
-    description="Search any NSE company for fundamentals, technicals, news, NSE announcements, peer comparison and a rule-based summary."
-    items={['Company search box', 'Overview, fundamentals and trends with charts', 'Technical analysis (EMA, RSI, MACD, support/resistance)', 'News and NSE announcements with sources', 'Peer comparison', 'Saved reports in the database']}
-    cli={['npm run company -- Reliance', 'npm run research -- RELIANCE', 'npm run dashboard   (local research page)']}
-  />
-);
-
 export const Reports = () => (
   <ComingSoon
     title="Reports"

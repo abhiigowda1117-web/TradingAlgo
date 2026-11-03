@@ -10,7 +10,8 @@ import { hashPassword, verifyPassword } from '../src/server/auth/password';
 import { RateLimiter } from '../src/server/auth/rateLimit';
 import { loadServerConfig } from '../src/server/config';
 import { migrate } from '../src/server/db/migrate';
-import { SessionRepo, SystemLogRepo, UserRepo } from '../src/server/db/repositories';
+import { ResearchRepo, SessionRepo, SystemLogRepo, UserRepo } from '../src/server/db/repositories';
+import type { ResearchReport } from '../src/research/research';
 import { apiRoutes } from '../src/server/routes';
 import { tradingCfg } from './helpers';
 
@@ -87,7 +88,7 @@ async function signIn(base: string) {
   return { res, cookie: cookie.split(';')[0]!, setCookie: cookie, csrfToken };
 }
 
-const PROTECTED = ['/api/auth/me', '/api/dashboard/summary', '/api/engine/status', '/api/market/overview', '/api/watchlist', '/api/trades', '/api/backtest/latest', '/api/settings'];
+const PROTECTED = ['/api/research/recent', '/api/auth/me', '/api/dashboard/summary', '/api/engine/status', '/api/market/overview', '/api/watchlist', '/api/trades', '/api/backtest/latest', '/api/settings'];
 
 describe('passwords', () => {
   it('hashes with scrypt, verifies, and rejects short passwords', async () => {
@@ -337,5 +338,70 @@ describe('paper account before the first trade', () => {
     const routes = apiRoutes({ files: f, backtestResult: join(dir, 'x.json'), tradingConfig: tradingCfg, env: { PAPER_CAPITAL: '500000' }, quotes: async () => [] });
     const s = (await routes['/api/engine/status']!(new URLSearchParams(), { userId: 1, username: 'owner', csrfToken: 'x', expiresAt: new Date() })) as { cash: number; equity: number; paperAccountStarted: boolean };
     expect(s).toMatchObject({ cash: 500000, equity: 500000, paperAccountStarted: false });
+  });
+});
+
+describe('company research API', () => {
+  const fakeReport = (symbol: string) => ({ symbol, generatedAt: new Date().toISOString(), overview: { name: `${symbol} Ltd` } }) as unknown as ResearchReport;
+
+  async function researchApp(research: (q: string, peers: string[]) => Promise<ResearchReport>) {
+    const pool = await memoryDb();
+    const users = new UserRepo(pool);
+    await users.upsertOwner('owner', await hashPassword(PASSWORD));
+    const { f, dir } = engineFixture();
+    const app = createApp({
+      db: pool, users, sessions: new SessionRepo(pool, 3_600_000), logs: new SystemLogRepo(pool), allowedOrigins: [ORIGIN], cookieSecure: false, trustProxy: false, sessionTtlMs: 3_600_000, tradingMode: 'paper', version: 't',
+      routes: apiRoutes({ files: f, backtestResult: join(dir, 'x.json'), tradingConfig: tradingCfg, env: {}, quotes: async () => [], research, researchRepo: new ResearchRepo(pool) }),
+    });
+    await new Promise<void>((r) => app.listen(0, '127.0.0.1', r));
+    close = () => app.close();
+    const base = `http://127.0.0.1:${(app.address() as AddressInfo).port}`;
+    const { cookie } = await signIn(base);
+    const get = (path: string) => fetch(`${base}${path}`, { headers: { Cookie: cookie } });
+    return { get, base, pool };
+  }
+
+  it('requires sign-in', async () => {
+    const { base } = await researchApp(async (q) => fakeReport(q));
+    expect((await fetch(`${base}/api/research?q=TCS`)).status).toBe(401);
+  });
+
+  it('validates the company and peer inputs', async () => {
+    const calls: string[] = [];
+    const { get } = await researchApp(async (q) => (calls.push(q), fakeReport(q)));
+    expect((await get('/api/research?q=')).status).toBe(400);
+    expect((await get('/api/research?q=%3Cscript%3E')).status).toBe(400);
+    expect((await get(`/api/research?q=${'A'.repeat(61)}`)).status).toBe(400);
+    expect((await get('/api/research?q=TCS&peers=A,B,C,D,E,F,G')).status).toBe(400);
+    expect((await get('/api/research?q=TCS&peers=in%20fy')).status).toBe(400);
+    expect(calls).toEqual([]);
+    expect((await get('/api/research?q=HDFC%20Bank&peers=icicibank,axisbank')).status).toBe(200);
+    expect(calls).toEqual(['HDFC Bank']);
+  });
+
+  it('caches for 15 minutes, refreshes on request, saves reports and lists recent ones', async () => {
+    let n = 0;
+    const { get, pool } = await researchApp(async () => (n++, fakeReport('TCS')));
+    expect((await (await get('/api/research?q=TCS')).json()).cached).toBeUndefined();
+    expect((await (await get('/api/research?q=tcs')).json()).cached).toBe(true);
+    expect(n).toBe(1);
+    await get('/api/research?q=TCS&refresh=1');
+    expect(n).toBe(2);
+    const saved = await pool.query('SELECT symbol FROM research_reports');
+    expect(saved.rows.length).toBe(2);
+    const recent = await (await get('/api/research/recent')).json();
+    expect(recent).toHaveLength(1);
+    expect(recent[0]).toMatchObject({ symbol: 'TCS', name: 'TCS Ltd' });
+  });
+
+  it('maps unknown companies to 404 and source outages to 502', async () => {
+    const { get } = await researchApp(async (q) => {
+      if (q === 'NOPE') throw new Error('No NSE company found for "NOPE"');
+      throw new Error('fetch failed');
+    });
+    const a = await get('/api/research?q=NOPE');
+    expect(a.status).toBe(404);
+    expect((await a.json()).error).toMatch(/No NSE company/);
+    expect((await get('/api/research?q=TCS')).status).toBe(502);
   });
 });

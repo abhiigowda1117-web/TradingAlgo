@@ -103,3 +103,34 @@ export class SystemLogRepo {
     await this.db.query('INSERT INTO system_logs (level, source, message, data) VALUES ($1, $2, $3, $4)', [level, source, message, data ? JSON.stringify(data) : null]);
   }
 }
+
+export interface SavedResearch {
+  id: number;
+  symbol: string;
+  name: string | null;
+  generatedAt: string;
+}
+
+/** Research reports saved per user (the full JSON report). */
+export class ResearchRepo {
+  constructor(private db: Db) {}
+
+  async save(userId: number, symbol: string, generatedAt: string, report: unknown): Promise<void> {
+    await this.db.query('INSERT INTO research_reports (user_id, symbol, generated_at, report) VALUES ($1, $2, $3, $4)', [userId, symbol, generatedAt, JSON.stringify(report)]);
+  }
+
+  /** Latest report per symbol, newest first. */
+  async recent(userId: number, limit = 12): Promise<SavedResearch[]> {
+    const r = await this.db.query('SELECT id, symbol, generated_at, report FROM research_reports WHERE user_id = $1 ORDER BY generated_at DESC LIMIT 200', [userId]);
+    const seen = new Set<string>();
+    const out: SavedResearch[] = [];
+    for (const row of r.rows) {
+      if (seen.has(row.symbol)) continue;
+      seen.add(row.symbol);
+      const rep = typeof row.report === 'string' ? JSON.parse(row.report) : row.report;
+      out.push({ id: Number(row.id), symbol: row.symbol, name: rep?.overview?.name ?? null, generatedAt: new Date(row.generated_at).toISOString() });
+      if (out.length >= limit) break;
+    }
+    return out;
+  }
+}
