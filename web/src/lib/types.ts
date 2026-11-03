@@ -28,6 +28,7 @@ export interface EngineStatus {
   investedPct: number | null;
   priceError?: string;
   mode: 'paper' | 'live';
+  paperAccountStarted: boolean;
   errors: string[];
 }
 

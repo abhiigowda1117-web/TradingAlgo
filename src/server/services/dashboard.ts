@@ -18,13 +18,19 @@ export interface EngineStatus extends Omit<EngineView, 'positions'> {
   investedPct: number | null;
   priceError?: string;
   mode: 'paper' | 'live';
+  /** False when the paper account file does not exist yet (no paper order placed); cash is then the starting capital. */
+  paperAccountStarted: boolean;
 }
 
 export async function engineStatus(
   files: EngineFiles,
-  opts: { now: Date; aliveWithinSeconds: number; mode: 'paper' | 'live'; quotes: (tickers: string[]) => Promise<QuoteSnapshot[]> },
+  opts: { now: Date; aliveWithinSeconds: number; mode: 'paper' | 'live'; quotes: (tickers: string[]) => Promise<QuoteSnapshot[]>; initialCash?: number },
 ): Promise<EngineStatus> {
   const view = readEngineView(files, opts.now, opts.aliveWithinSeconds);
+  // The paper broker only writes its account file on its first order. Until then the account holds
+  // exactly the configured starting capital, so show that rather than nothing.
+  const paperAccountStarted = view.cash !== null;
+  if (!paperAccountStarted && opts.mode === 'paper' && view.positions.length === 0 && opts.initialCash && opts.initialCash > 0) view.cash = opts.initialCash;
   let prices: Record<string, number> = {};
   let priceError: string | undefined;
   if (view.positions.length) {
@@ -50,6 +56,7 @@ export async function engineStatus(
     investedPct: equity && invested !== null ? invested / equity : null,
     priceError,
     mode: opts.mode,
+    paperAccountStarted,
   };
 }
 

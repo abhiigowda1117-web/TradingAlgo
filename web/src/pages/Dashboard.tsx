@@ -19,7 +19,7 @@ export function Dashboard() {
         <Stat
           label="Paper equity"
           value={e?.equity == null ? '—' : inrShort(e.equity)}
-          sub={e && e.cash == null ? 'No paper account yet: start the engine' : e?.priceError ? 'Prices unavailable right now' : 'Cash + positions at delayed prices'}
+          sub={e && !e.paperAccountStarted ? 'Starting capital; no paper trades yet' : e?.priceError ? 'Prices unavailable right now' : 'Cash + positions at delayed prices'}
         />
         <Stat label="Cash" value={e?.cash == null ? '—' : inrShort(e.cash)} sub={e?.investedPct != null ? `${pct(e.investedPct)} invested` : undefined} />
         <Stat label="Today's P&L" value={e?.dayPnl == null ? '—' : inr(e.dayPnl)} valueClass={tone(e?.dayPnl)} sub="vs. equity at the day's start" />

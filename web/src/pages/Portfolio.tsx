@@ -14,7 +14,7 @@ export function Portfolio() {
       ) : (
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <Stat label="Equity" value={e.equity == null ? '—' : inrShort(e.equity)} sub={e.cash == null ? 'No paper account yet: start the engine' : undefined} />
+            <Stat label="Equity" value={e.equity == null ? '—' : inrShort(e.equity)} sub={!e.paperAccountStarted ? 'Starting capital; no paper trades yet' : undefined} />
             <Stat label="Cash" value={e.cash == null ? '—' : inrShort(e.cash)} />
             <Stat label="Invested" value={e.investedPct == null ? '—' : pct(e.investedPct)} />
             <Stat label="Today's P&L" value={e.dayPnl == null ? '—' : inr(e.dayPnl)} valueClass={tone(e.dayPnl)} />

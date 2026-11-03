@@ -36,7 +36,8 @@ export function apiRoutes(d: RouteDeps): ApiRoutes {
   const aliveWithinSeconds = Math.max(120, d.tradingConfig.engine.pollSeconds * 4);
   const watchlist = () => loadWatchlist(d.files.watchlist)?.entries.map((e) => e.symbol) ?? [];
   const market = cached<MarketOverview>(60_000, () => marketOverview({ quotes: d.quotes }, { watchlist: watchlist(), holidays: d.tradingConfig.engine.holidays, now: now() }));
-  const status = () => engineStatus(d.files, { now: now(), aliveWithinSeconds, mode, quotes: d.quotes });
+  const paperCapital = Number(d.env.PAPER_CAPITAL ?? 500_000);
+  const status = () => engineStatus(d.files, { now: now(), aliveWithinSeconds, mode, quotes: d.quotes, initialCash: Number.isFinite(paperCapital) && paperCapital > 0 ? paperCapital : undefined });
 
   return {
     '/api/engine/status': status,

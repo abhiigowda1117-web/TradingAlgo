@@ -327,3 +327,15 @@ describe('data source outages', () => {
     expect((await res.json()).error).toMatch(/Market data unavailable from Yahoo Finance \(fetch failed\)/);
   });
 });
+
+describe('paper account before the first trade', () => {
+  it('shows the starting capital instead of nothing, and says no trades yet', async () => {
+    const { f, dir } = engineFixture();
+    const { rmSync } = await import('node:fs');
+    rmSync(f.paperAccount);
+    rmSync(f.state);
+    const routes = apiRoutes({ files: f, backtestResult: join(dir, 'x.json'), tradingConfig: tradingCfg, env: { PAPER_CAPITAL: '500000' }, quotes: async () => [] });
+    const s = (await routes['/api/engine/status']!(new URLSearchParams(), { userId: 1, username: 'owner', csrfToken: 'x', expiresAt: new Date() })) as { cash: number; equity: number; paperAccountStarted: boolean };
+    expect(s).toMatchObject({ cash: 500000, equity: 500000, paperAccountStarted: false });
+  });
+});
