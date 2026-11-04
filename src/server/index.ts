@@ -9,7 +9,7 @@ import { registerSecret } from '../util/log';
 import { createApp } from './app';
 import { loadServerConfig } from './config';
 import { migrate, poolTarget } from './db/migrate';
-import { createPool } from './db/pool';
+import { createPool, explainDbError } from './db/pool';
 import { ResearchRepo, SessionRepo, SystemLogRepo, UserRepo } from './db/repositories';
 import { apiRoutes, cached } from './routes';
 import { KitePrices, type KiteCredentials } from './services/kitePrices';
@@ -27,7 +27,7 @@ try {
   const applied = await migrate(poolTarget(pool), resolve(ROOT, 'db/migrations'));
   if (applied.length) console.log(`Database migrations applied: ${applied.join(', ')}`);
 } catch (e) {
-  console.error(`Could not connect to or migrate the database: ${(e as Error).message}\nCheck DATABASE_URL in .env and that PostgreSQL is running.`);
+  console.error(`Could not connect to or migrate the database:\n  ${explainDbError(e)}\nCheck DATABASE_URL in .env and that PostgreSQL is running.`);
   process.exit(1);
 }
 const users = new UserRepo(pool);

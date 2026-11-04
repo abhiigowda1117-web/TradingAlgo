@@ -518,3 +518,15 @@ describe('chart and quote require sign-in', () => {
     for (const p of ['/api/chart?symbol=INFY&interval=1d&range=1Y', '/api/quote?symbol=INFY']) expect((await fetch(`${base}${p}`)).status).toBe(401);
   });
 });
+
+describe('database connection errors in plain words', () => {
+  it('explains refused connections, wrong passwords and a missing database', async () => {
+    const { explainDbError } = await import('../src/server/db/pool');
+    const refused = Object.assign(new AggregateError([Object.assign(new Error('connect ECONNREFUSED ::1:5432'), { code: 'ECONNREFUSED' }), Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:5432'), { code: 'ECONNREFUSED' })], ''), { code: 'ECONNREFUSED' });
+    expect(refused.message).toBe('');
+    expect(explainDbError(refused)).toMatch(/PostgreSQL is not running/);
+    expect(explainDbError(Object.assign(new Error('password authentication failed for user "postgres"'), { code: '28P01' }))).toMatch(/Wrong PostgreSQL password.*%40/);
+    expect(explainDbError(Object.assign(new Error('database "algotrade" does not exist'), { code: '3D000' }))).toMatch(/CREATE DATABASE algotrade/);
+    expect(explainDbError(new Error('something else'))).toBe('something else');
+  });
+});

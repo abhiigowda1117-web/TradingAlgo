@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { resolve } from 'node:path';
 import { ROOT } from '../config';
 import { migrate, poolTarget } from '../server/db/migrate';
-import { createPool } from '../server/db/pool';
+import { createPool, explainDbError } from '../server/db/pool';
 
 // Usage: npm run db:migrate   (creates/updates the database tables; safe to run repeatedly)
 const url = process.env.DATABASE_URL;
@@ -15,7 +15,7 @@ try {
   const applied = await migrate(poolTarget(pool), resolve(ROOT, 'db/migrations'));
   console.log(applied.length ? `Applied: ${applied.join(', ')}` : 'Database is up to date.');
 } catch (e) {
-  console.error(`Migration failed: ${(e as Error).message}`);
+  console.error(`Migration failed: ${explainDbError(e)}`);
   process.exitCode = 1;
 } finally {
   await pool.end();

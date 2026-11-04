@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { ROOT } from '../config';
 import { hashPassword } from '../server/auth/password';
 import { migrate, poolTarget } from '../server/db/migrate';
-import { createPool } from '../server/db/pool';
+import { createPool, explainDbError } from '../server/db/pool';
 import { UserRepo } from '../server/db/repositories';
 import { parseArgs } from './args';
 
@@ -60,7 +60,7 @@ try {
   const result = await new UserRepo(pool).upsertOwner(username, await hashPassword(password));
   console.log(result === 'created' ? `Owner account "${username}" created. Start the site and sign in.` : `Password for "${username}" updated; existing sessions were signed out.`);
 } catch (e) {
-  console.error(`Could not save the account: ${(e as Error).message}`);
+  console.error(`Could not save the account: ${explainDbError(e)}`);
   process.exitCode = 1;
 } finally {
   await pool.end();
