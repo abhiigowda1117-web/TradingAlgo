@@ -29,7 +29,7 @@ export function Backtest() {
           </div>
           <Card title="Equity: strategy vs benchmark">
             <EquityChart height={340} series={[
-              { label: 'Strategy', color: '#3db8ff', points: b.curve.map((p) => ({ time: p.day, value: p.strategy })) },
+              { label: b.strategyName ?? 'Strategy', color: '#3db8ff', points: b.curve.map((p) => ({ time: p.day, value: p.strategy })) },
               { label: 'NIFTY 50', color: '#94a3b8', points: b.curve.map((p) => ({ time: p.day, value: p.benchmark })) },
             ]} />
             <p className="mt-2 text-xs text-slate-500">{b.benchmarkLabel}. Historical simulation with costs and slippage; survivorship and other biases apply (see the command-line report). Not a forecast.</p>

@@ -256,7 +256,8 @@ export function SellButton({ symbol, control, reload }: { symbol: string; contro
 
 const JOB_TEXT: Record<JobView['job'], { button: string; running: string; what: string }> = {
   study: { button: '↻ Refresh watchlist now', running: 'Studying 43 companies…', what: 'Runs the company study (about 2 minutes) and saves a new watchlist for the engine.' },
-  backtest: { button: '▶ Run backtest now', running: 'Running the backtest…', what: 'Re-runs the portfolio backtest against the NIFTY 50 (a few minutes) and updates the charts.' },
+  backtest: { button: '▶ Run backtest now', running: 'Running the backtest…', what: 'Re-runs the portfolio backtest of the active strategy against the NIFTY 50 (a few minutes) and updates the charts.' },
+  lab: { button: '▶ Compare all strategies', running: 'Comparing 5 strategies…', what: 'Backtests every strategy on the same stocks, period, costs and risk rules, against the NIFTY 50 (a few minutes).' },
 };
 
 /** Button + live output for a background job (Watchlist and Backtesting pages). */

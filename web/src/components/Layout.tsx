@@ -13,6 +13,7 @@ export const NAV = [
   { to: '/watchlist', label: 'Market Watchlist', icon: 'watchlist' },
   { to: '/engine', label: 'Trading Engine', icon: 'engine' },
   { to: '/portfolio', label: 'Paper Portfolio', icon: 'portfolio' },
+  { to: '/strategies', label: 'Strategy Lab', icon: 'strategy' },
   { to: '/backtest', label: 'Backtesting', icon: 'backtest' },
   { to: '/risk', label: 'Risk Management', icon: 'risk' },
   { to: '/trades', label: 'Trade History', icon: 'trades' },

@@ -99,6 +99,19 @@ Open **http://localhost:3001** and sign in. Press Ctrl+C to stop.
 
 **Windows, one click:** double-click `start-algotrade.cmd` in the TradingAlgo folder. It stops any old server on port 3001, runs `git pull`, installs anything new, rebuilds the website, starts the server and opens the browser. Keep its window open; closing it stops the website.
 
+### Strategy Lab: five strategies, compared honestly
+The **Strategy Lab** page describes five long-only strategies in plain words and backtests all of them on the same stocks, period, costs and risk rules against simply holding the NIFTY 50:
+
+| Strategy | Style | Buys | Sells |
+|---|---|---|---|
+| EMA Trend (default) | Trend following | EMA 20 crosses above EMA 50, above EMA 200, RSI 50–70 | EMA 20 below EMA 50, or 3-ATR trailing stop |
+| Donchian Breakout | Breakout (Turtle) | Fresh close above the previous 55-day high | Close below the previous 20-day low (stop trails to it) |
+| 52-Week High Momentum | Momentum | Fresh 20-day closing high within 5% of the 52-week high, above rising 50/200-day averages | Close below the 50-day average, or 3-ATR trailing stop |
+| RSI-2 Pullback | Mean reversion | RSI(2) below 10 while above the 200-day average | Close above the 5-day average, or the 2-ATR stop |
+| Supertrend | Trend following | Supertrend (10, 3) flips up | Supertrend flips down (stop trails the line) |
+
+Settings are standard textbook values and were not tuned on the data. The results show the full period and an unseen **test period**; a strategy that lags the NIFTY 50 in the test period has no proven edge. Press **Use for paper trading** to choose the strategy for the paper engine's new buys. Each position remembers the strategy that bought it and is sold by that strategy's rules. From the command line: `npm run portfolio -- --strategy donchian`, or `npm run portfolio -- --compare`.
+
 ### Control everything from the website (paper trading only)
 No terminal needed once the site is running:
 - **Trading Engine** page: **Start engine** / **Stop engine**, and the kill switch (**Normal**, **Pause new buys**, **Sell everything & stop**), plus the engine's live log. Only one engine can run at a time (`data/engine.lock`), whether started here or with `npm run trade`; a second one refuses to start.

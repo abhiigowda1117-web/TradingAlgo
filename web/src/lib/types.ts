@@ -44,6 +44,7 @@ export interface Trade {
 
 export interface BacktestSummary {
   generatedAt: string;
+  strategyName?: string;
   period: { from: string; to: string };
   strategyReturn: number | null;
   benchmarkReturn: number | null;
@@ -139,7 +140,7 @@ export interface ManualOrderView {
 }
 
 export interface JobView {
-  job: 'study' | 'backtest';
+  job: 'study' | 'backtest' | 'lab';
   state: 'running' | 'succeeded' | 'failed';
   startedAt: string;
   finishedAt?: string;
@@ -167,4 +168,51 @@ export interface ControlView {
   job: JobView | null;
   orders: ManualOrderView[];
   log: string[];
+}
+
+export interface StrategyInfo {
+  id: 'emaTrend' | 'donchian' | 'momentum52' | 'rsi2' | 'supertrend';
+  name: string;
+  style: string;
+  summary: string;
+  buy: string;
+  sell: string;
+  suits: string;
+}
+
+export interface PerfSummary {
+  label: string;
+  from: string;
+  to: string;
+  days: number;
+  startValue: number;
+  endValue: number;
+  totalReturn: number;
+  cagr: number;
+  maxDrawdown: number;
+  sharpe: number;
+  trades?: number;
+  winRate?: number;
+  profitFactor?: number;
+  exposure?: number;
+}
+
+export interface StrategyLab {
+  generatedAt: string;
+  period: { from: string; to: string; split: string; tradingDays: number };
+  universe: { count: number; source: string; missing: string[] };
+  benchmark: { label: string; kind: string; periods: PerfSummary[] };
+  settings: { capital: number; maxOpenPositions: number; riskPerTrade: number; slippagePct: number };
+  days: string[];
+  benchmarkCurve: number[];
+  strategies: { id: StrategyInfo['id']; name: string; periods: PerfSummary[]; liquidation: number; curve: number[] }[];
+  survivorshipBias: boolean;
+}
+
+export interface StrategiesView {
+  strategies: StrategyInfo[];
+  active: { name: StrategyInfo['id']; changedBy?: string; changedAt?: string; source: 'website' | 'config' };
+  lab: StrategyLab | null;
+  canControl: boolean;
+  tradingMode: 'paper' | 'live';
 }

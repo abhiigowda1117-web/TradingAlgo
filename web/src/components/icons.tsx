@@ -6,6 +6,7 @@ const P: Record<string, string> = {
   engine: 'M12 2v4m0 12v4M4.9 4.9l2.8 2.8m8.6 8.6 2.8 2.8M2 12h4m12 0h4M4.9 19.1l2.8-2.8m8.6-8.6 2.8-2.8M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z',
   portfolio: 'M3 7h18v13H3zM8 7V4h8v3',
   backtest: 'M3 3v18h18M7 15l4-4 3 3 5-6',
+  strategy: 'M4 4h6v6H4zm10 0h6v6h-6zM4 14h6v6H4zm13 0v6m-3-3h6',
   risk: 'M12 3 2 20h20zm0 6v5m0 3v.01',
   trades: 'M7 4v16M3 8l4-4 4 4m6 12V4m4 12-4 4-4-4',
   reports: 'M6 2h9l5 5v15H6zM14 2v6h6M9 13h6M9 17h6',
