@@ -11,7 +11,8 @@ import { loadServerConfig } from './config';
 import { migrate, poolTarget } from './db/migrate';
 import { createPool, explainDbError } from './db/pool';
 import { ResearchRepo, SessionRepo, SystemLogRepo, UserRepo } from './db/repositories';
-import { apiRoutes, cached } from './routes';
+import { apiActions, apiRoutes, cached, type RouteDeps } from './routes';
+import { ControlService } from './services/control';
 import { KitePrices, type KiteCredentials } from './services/kitePrices';
 import { PriceService } from './services/prices';
 
@@ -75,6 +76,26 @@ const quotes = (tickers: string[]) => {
   return c();
 };
 
+const routeDeps: RouteDeps = {
+  files: paths,
+  backtestResult: paths.backtestResult,
+  tradingConfig: loadTradingConfig(),
+  env: process.env,
+  quotes,
+  researchRepo: new ResearchRepo(pool),
+  chart: (ticker, interval, from) => prices.chart(ticker, interval, from),
+  priceWarning: () => prices.kiteWarning,
+  research: async (query, peers) => {
+    // Accept a company name or symbol; research needs an NSE listing.
+    const { ticker, symbol } = await resolveCompany(query, sources);
+    if (!ticker.endsWith('.NS')) throw new Error(`${query} resolves to a BSE-only listing (${ticker}); research covers NSE-listed companies. Check the NSE symbol.`);
+    return researchCompany(symbol, researchSources, { peers });
+  },
+  // Website controls: start/stop the PAPER engine as a separate program, run jobs, queue paper orders.
+  control: new ControlService({ root: ROOT, engineLock: paths.engineLock, engineStopRequest: paths.engineStopRequest, jobsLog: paths.jobsLog }, { tradingMode }),
+  manualOrdersDir: paths.manualOrders,
+};
+
 const app = createApp({
   db: pool,
   users,
@@ -87,23 +108,9 @@ const app = createApp({
   tradingMode,
   version,
   staticDir: cfg.staticDir,
-  routes: apiRoutes({
-    files: paths,
-    backtestResult: paths.backtestResult,
-    tradingConfig: loadTradingConfig(),
-    env: process.env,
-    quotes,
-    researchRepo: new ResearchRepo(pool),
-    chart: (ticker, interval, from) => prices.chart(ticker, interval, from),
-    priceWarning: () => prices.kiteWarning,
-    research: async (query, peers) => {
-      // Accept a company name or symbol; research needs an NSE listing.
-      const { ticker, symbol } = await resolveCompany(query, sources);
-      if (!ticker.endsWith('.NS')) throw new Error(`${query} resolves to a BSE-only listing (${ticker}); research covers NSE-listed companies. Check the NSE symbol.`);
-      return researchCompany(symbol, researchSources, { peers });
-    },
-  }),
+  routes: apiRoutes(routeDeps),
+  actions: apiActions(routeDeps),
 });
 app.listen(cfg.port, cfg.host, () => {
-  console.log(`AlgoTrade server on http://${cfg.host === '127.0.0.1' ? 'localhost' : cfg.host}:${cfg.port}  (trading mode shown: ${tradingMode}; this server never places orders)`);
+  console.log(`AlgoTrade server on http://${cfg.host === '127.0.0.1' ? 'localhost' : cfg.host}:${cfg.port}  (trading mode: ${tradingMode}; website controls run the paper engine, the server itself never sends orders)`);
 });

@@ -6,10 +6,12 @@ import { LARGE_CAPS, marketMovers, marketOverview, sessionStatus, type MarketMov
 import type { ResearchReport } from '../research/research';
 import type { ResearchRepo } from './db/repositories';
 import type { TradingConfig } from '../config';
-import type { ApiRoutes } from './app';
+import type { ApiActions, ApiRoutes } from './app';
+import { listManualOrders, queueManualOrder } from '../trading/manualOrders';
+import { ControlError, ControlService } from './services/control';
 import { HttpError } from './app';
 import { dashboardTrades, engineStatus, latestBacktest, settingsView } from './services/dashboard';
-import type { EngineFiles } from './services/engineView';
+import { readKillSwitch, setKillSwitch, tailLines, type EngineFiles, type KillSwitchMode } from './services/engineView';
 
 /** Small TTL cache that also merges concurrent loads (protects Yahoo from bursts). */
 export function cached<T>(ttlMs: number, load: () => Promise<T>): () => Promise<T> {
@@ -37,7 +39,74 @@ export interface RouteDeps {
   chart?: (ticker: string, interval: ChartYahooInterval, from: Date) => Promise<Candle[] | { rows: Candle[]; provider: 'kite' | 'yahoo'; warning?: string; note?: string }>;
   /** Current Zerodha Kite problem, if Kite is switched on but failing (shown on the page). */
   priceWarning?: () => string | undefined;
+  /** Website controls (engine start/stop, jobs). Absent in read-only setups. */
+  control?: ControlService;
+  /** Folder for manual paper orders handed to the engine (see trading/manualOrders.ts). */
+  manualOrdersDir?: string;
   now?: () => Date;
+}
+
+/** Engine controls, kill switch, manual paper orders and jobs, as seen by the Control panels. */
+export function controlView(d: RouteDeps, canControl: boolean) {
+  const now = d.now?.() ?? new Date();
+  return {
+    canControl,
+    tradingMode: d.env.TRADING_MODE === 'live' ? 'live' : 'paper',
+    available: Boolean(d.control),
+    engine: d.control?.engineStatus() ?? null,
+    killSwitch: readKillSwitch(d.files.killSwitch),
+    market: sessionStatus(now, d.tradingConfig.engine.holidays),
+    job: d.control?.jobStatus() ?? null,
+    orders: d.manualOrdersDir ? listManualOrders(d.manualOrdersDir, 20) : [],
+    log: tailLines(d.files.engineLog, 80),
+  };
+}
+
+const asHttp = <T>(f: () => T): T => {
+  try {
+    return f();
+  } catch (e) {
+    if (e instanceof ControlError) throw new HttpError(e.status, e.message);
+    throw e;
+  }
+};
+
+/**
+ * State-changing website actions. Paper only: the engine is started without --live, buy and sell
+ * requests are carried out by the engine under every risk rule, and only while it runs in market hours.
+ */
+export function apiActions(d: RouteDeps): ApiActions {
+  const control = () => {
+    if (!d.control) throw new HttpError(503, 'Controls are not available on this server');
+    return d.control;
+  };
+  return {
+    '/api/control/engine/start': (_b, s) => asHttp(() => control().startEngine(s.username)),
+    '/api/control/engine/stop': (_b, s) => asHttp(() => control().stopEngine(s.username)),
+    '/api/control/kill-switch': (b) => {
+      const mode = b.mode;
+      if (mode !== 'off' && mode !== 'halt' && mode !== 'flatten') throw new HttpError(400, 'mode must be off, halt or flatten');
+      setKillSwitch(d.files.killSwitch, mode as KillSwitchMode);
+      return { killSwitch: readKillSwitch(d.files.killSwitch) };
+    },
+    '/api/control/job': (b, s) => asHttp(() => control().runJob(String(b.job ?? ''), s.username)),
+    '/api/control/order': (b, s) => {
+      if (!d.manualOrdersDir) throw new HttpError(503, 'Paper orders are not available on this server');
+      if (d.env.TRADING_MODE === 'live') throw new HttpError(403, 'Orders from the website work in paper trading only.');
+      const kind = b.kind;
+      if (kind !== 'buy' && kind !== 'sell') throw new HttpError(400, 'kind must be buy or sell');
+      const symbol = typeof b.symbol === 'string' ? b.symbol : '';
+      const maxQty = b.maxQty === undefined || b.maxQty === null || b.maxQty === '' ? undefined : Number(b.maxQty);
+      const market = sessionStatus(d.now?.() ?? new Date(), d.tradingConfig.engine.holidays);
+      if (!market.open) throw new HttpError(409, `The market is closed (${market.label}). Paper orders can be placed 09:15–15:30 IST on trading days.`);
+      if (!d.control?.engineStatus().running) throw new HttpError(409, 'Start the engine first: it carries out the order with all the risk rules.');
+      try {
+        return queueManualOrder(d.manualOrdersDir, { kind, symbol, maxQty, requestedBy: s.username });
+      } catch (e) {
+        throw new HttpError(400, (e as Error).message);
+      }
+    },
+  };
 }
 
 const COMPANY_QUERY = /^[A-Za-z0-9&.\- ]{1,60}$/;
@@ -116,6 +185,7 @@ export function apiRoutes(d: RouteDeps): ApiRoutes {
   const status = () => engineStatus(d.files, { now: now(), aliveWithinSeconds, mode, quotes: d.quotes, initialCash: Number.isFinite(paperCapital) && paperCapital > 0 ? paperCapital : undefined });
 
   return {
+    '/api/control': (_q, s) => controlView(d, s.canControl !== false),
     '/api/engine/status': status,
     '/api/dashboard/summary': async () => {
       const engine = await status();

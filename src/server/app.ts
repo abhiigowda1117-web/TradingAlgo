@@ -18,6 +18,14 @@ export interface ApiRoutes {
   [path: string]: (q: URLSearchParams, session: SessionRecord) => Promise<unknown> | unknown;
 }
 
+/**
+ * State-changing POST handlers (engine controls, paper orders, jobs), keyed by path. They run only for a
+ * signed-in session with a valid CSRF token and an account that is allowed to control (not view-only).
+ */
+export interface ApiActions {
+  [path: string]: (body: Record<string, unknown>, session: SessionRecord) => Promise<unknown> | unknown;
+}
+
 export interface AppDeps {
   db: Db;
   users: UserRepo;
@@ -30,6 +38,7 @@ export interface AppDeps {
   tradingMode: 'paper' | 'live';
   version: string;
   routes: ApiRoutes;
+  actions?: ApiActions;
   /** Built frontend (web/dist). Optional: in development Vite serves the frontend. */
   staticDir?: string;
   apiLimit?: { max: number; windowMs: number };
@@ -198,7 +207,17 @@ export function createApp(d: AppDeps): Server {
         return send(res, 200, { ok: true }, { 'Set-Cookie': cookie('', 0) });
       }
       if (!session) throw new HttpError(401, 'Please sign in');
-      if (path === '/api/auth/me' && req.method === 'GET') return send(res, 200, { user: { username: session.username }, csrfToken: session.csrfToken, tradingMode: d.tradingMode });
+      if (path === '/api/auth/me' && req.method === 'GET') return send(res, 200, { user: { username: session.username, canControl: session.canControl !== false }, csrfToken: session.csrfToken, tradingMode: d.tradingMode });
+
+      const action = req.method === 'POST' ? d.actions?.[path] : undefined;
+      if (action) {
+        requireCsrf(req, session);
+        if (session.canControl === false) throw new HttpError(403, 'This account is view-only. Only the owner can control the engine or place paper orders.');
+        const body = await readJson(req);
+        const result = await action(body, session);
+        await d.logs.write('info', 'control', `${path} by ${session.username}`, { body }).catch(() => undefined);
+        return send(res, 200, result);
+      }
 
       const handler = req.method === 'GET' ? d.routes[path] : undefined;
       if (!handler) {

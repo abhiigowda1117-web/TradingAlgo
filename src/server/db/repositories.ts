@@ -6,6 +6,8 @@ export interface User {
   username: string;
   passwordHash: string;
   role: 'owner';
+  /** False for view-only accounts: they cannot control the engine or place paper orders. */
+  canControl: boolean;
   lastLoginAt: string | null;
 }
 
@@ -14,6 +16,8 @@ export interface SessionRecord {
   username: string;
   csrfToken: string;
   expiresAt: Date;
+  /** False for view-only accounts. */
+  canControl?: boolean;
 }
 
 const hashId = (id: string) => createHash('sha256').update(id).digest('hex');
@@ -22,9 +26,9 @@ export class UserRepo {
   constructor(private db: Db) {}
 
   async findByUsername(username: string): Promise<User | undefined> {
-    const r = await this.db.query('SELECT id, username, password_hash, role, last_login_at FROM users WHERE username = $1', [username.toLowerCase()]);
+    const r = await this.db.query('SELECT id, username, password_hash, role, can_control, last_login_at FROM users WHERE username = $1', [username.toLowerCase()]);
     const u = r.rows[0];
-    return u ? { id: Number(u.id), username: u.username, passwordHash: u.password_hash, role: u.role, lastLoginAt: u.last_login_at ? new Date(u.last_login_at).toISOString() : null } : undefined;
+    return u ? { id: Number(u.id), username: u.username, passwordHash: u.password_hash, role: u.role, canControl: u.can_control !== false, lastLoginAt: u.last_login_at ? new Date(u.last_login_at).toISOString() : null } : undefined;
   }
 
   async count(): Promise<number> {
@@ -32,15 +36,16 @@ export class UserRepo {
   }
 
   /** Creates the owner, or replaces the password when the user already exists. */
-  async upsertOwner(username: string, passwordHash: string): Promise<'created' | 'updated'> {
+  /** Creates an account, or resets its password. `canControl: false` makes a view-only account. */
+  async upsertOwner(username: string, passwordHash: string, canControl = true): Promise<'created' | 'updated'> {
     const name = username.toLowerCase();
     const existing = await this.findByUsername(name);
     if (existing) {
-      await this.db.query('UPDATE users SET password_hash = $1, updated_at = now() WHERE id = $2', [passwordHash, existing.id]);
+      await this.db.query('UPDATE users SET password_hash = $1, can_control = $2, updated_at = now() WHERE id = $3', [passwordHash, canControl, existing.id]);
       await this.db.query('DELETE FROM sessions WHERE user_id = $1', [existing.id]); // sign out everywhere
       return 'updated';
     }
-    await this.db.query(`INSERT INTO users (username, password_hash, role) VALUES ($1, $2, 'owner')`, [name, passwordHash]);
+    await this.db.query(`INSERT INTO users (username, password_hash, role, can_control) VALUES ($1, $2, 'owner', $3)`, [name, passwordHash, canControl]);
     return 'created';
   }
 
@@ -75,7 +80,7 @@ export class SessionRepo {
   async get(id: string | undefined): Promise<SessionRecord | undefined> {
     if (!id || id.length > 100) return undefined;
     const r = await this.db.query(
-      'SELECT s.user_id, s.csrf_token, s.expires_at, u.username FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id_hash = $1',
+      'SELECT s.user_id, s.csrf_token, s.expires_at, u.username, u.can_control FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id_hash = $1',
       [hashId(id)],
     );
     const s = r.rows[0];
@@ -85,7 +90,7 @@ export class SessionRepo {
       await this.destroy(id);
       return undefined;
     }
-    return { userId: Number(s.user_id), username: s.username, csrfToken: s.csrf_token, expiresAt };
+    return { userId: Number(s.user_id), username: s.username, csrfToken: s.csrf_token, expiresAt, canControl: s.can_control !== false };
   }
 
   async destroy(id: string | undefined): Promise<void> {

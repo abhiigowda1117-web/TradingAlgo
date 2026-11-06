@@ -11,6 +11,9 @@ import { daysBetween, hhmm, isNseOpen, istParts, sleep } from '../util/time';
 import { TERMINAL, toTick, type Broker, type OrderRequest, type OrderSnapshot, type OrderStatus } from './brokers/broker';
 import { isAuthError, isDefiniteRejection } from './brokers/errors';
 import { costModel, dailyLossBreached, isPositive, positionSize, validateEntryPrice } from './risk';
+import { atr } from './indicators';
+import { finishManualOrder, pendingManualOrders, type ManualOrder } from './manualOrders';
+import { clearStopRequest, stopRequested } from './runLock';
 import { computeIndicators, entrySignal, exitSignal, warmupBars } from './strategy';
 
 /**
@@ -55,6 +58,8 @@ export interface OrderIntent {
   highestClose?: number;
   reason?: string;
   studyScore?: number;
+  /** Bought by hand from the website (paper only), not by the strategy. */
+  manual?: boolean;
 }
 
 export type Protection = 'confirmed' | 'pending' | 'none';
@@ -79,6 +84,8 @@ export interface PositionState {
   stopFailures?: number;
   stopFailuresOn?: string;
   mismatchCount?: number;
+  /** Bought by hand from the website: kept on a trailing stop, not closed by the strategy's exit rule. */
+  manual?: boolean;
 }
 
 export interface EngineState {
@@ -99,6 +106,10 @@ export interface EnginePaths {
   killSwitch: string;
   /** Optional: written after every tick so a dashboard can tell whether the engine is alive. */
   heartbeat?: string;
+  /** Optional: folder of manual paper orders queued by the website (see manualOrders.ts). */
+  manualOrders?: string;
+  /** Optional: when this file appears, the engine finishes its current tick and exits cleanly. */
+  stopRequest?: string;
 }
 
 export interface EngineDeps {
@@ -124,6 +135,8 @@ const MAX_STOP_FAILURES_PER_DAY = 3;
 const MAX_EXIT_ATTEMPTS = 3;
 const NOT_FOUND_LOOKUPS = 3;
 const MISMATCH_CONFIRMATIONS = 2;
+/** Website orders older than this are rejected, so nothing runs long after it was asked for. */
+const MANUAL_ORDER_MAX_AGE_MIN = 30;
 
 /**
  * Daily swing-trading engine. During NSE hours it polls every `pollSeconds`: it reconciles every
@@ -167,6 +180,12 @@ export class Engine {
     log.info(`Engine started with ${this.d.broker.name} broker, ${Object.keys(this.state.positions).length} open positions`);
     let consecutiveErrors = 0;
     for (;;) {
+      if (this.stopWanted()) {
+        clearStopRequest(this.d.paths.stopRequest!);
+        log.warn('Stop requested from the website: engine stopped. Open positions stay open with their stop-loss orders; start the engine again to keep managing them.');
+        this.beat('stopped');
+        return;
+      }
       try {
         const result = await this.tick();
         this.beat(result);
@@ -181,8 +200,13 @@ export class Engine {
         }
         if (++consecutiveErrors >= 10) log.error(`${consecutiveErrors} consecutive failures; check connectivity and the broker`);
       }
-      await this.wait(this.d.cfg.engine.pollSeconds * 1000);
+      // Wait in one-second steps so a stop request is noticed quickly.
+      for (let s = 0; s < this.d.cfg.engine.pollSeconds && !this.stopWanted(); s++) await this.wait(1000);
     }
+  }
+
+  private stopWanted(): boolean {
+    return Boolean(this.d.paths.stopRequest && stopRequested(this.d.paths.stopRequest));
   }
 
   /** Records that the engine is alive (information only; never read back by the engine). */
@@ -229,6 +253,7 @@ export class Engine {
     await this.manageProtection(ctx);
 
     if (ks === 'flatten') {
+      this.rejectManualOrders('the kill switch is set to "sell everything and stop"');
       const busy = Object.values(this.state.intents).some((i) => !FINAL_INTENT.has(i.status) && i.kind !== 'stop');
       if (Object.keys(this.state.positions).length === 0 && !busy) {
         log.warn('Kill switch FLATTEN complete: no open positions. Engine stopped.');
@@ -239,6 +264,7 @@ export class Engine {
     }
 
     await this.checkDailyLoss(ctx);
+    await this.processManualOrders(ctx);
     if (istParts(now).minutes >= hhmm(this.d.cfg.engine.evaluateAt) && this.state.lastEvaluated !== ctx.today) {
       await this.evaluate(ctx);
       this.state.lastEvaluated = ctx.today;
@@ -421,11 +447,12 @@ export class Engine {
         stop: intent.plannedStop!,
         highestClose: intent.highestClose ?? price,
         protection: 'none',
+        ...(intent.manual ? { manual: true } : {}),
       });
       p.entryPrice = (p.entryPrice * p.qty + value) / (p.qty + delta);
       p.qty += delta;
       log.info(`BUY FILL ${intent.symbol} ${delta} @ ₹${price.toFixed(2)} (now ${p.qty} @ ₹${p.entryPrice.toFixed(2)}, stop ₹${p.stop.toFixed(2)}) [${intent.id}]`);
-      this.recordTrade({ symbol: intent.symbol, side: 'BUY', qty: delta, price, stop: p.stop, reason: intent.reason, studyScore: intent.studyScore, intentId: intent.id, orderId: intent.orderId });
+      this.recordTrade({ symbol: intent.symbol, side: 'BUY', qty: delta, price, stop: p.stop, reason: intent.reason, studyScore: intent.studyScore, intentId: intent.id, orderId: intent.orderId, ...(intent.manual ? { manual: true } : {}) });
     } else {
       const p = this.state.positions[intent.symbol];
       if (!p) {
@@ -717,6 +744,107 @@ export class Engine {
     }
   }
 
+  // ---------------------------------------------------------------- manual paper orders (website)
+
+  private rejectManualOrders(why: string) {
+    const dir = this.d.paths.manualOrders;
+    if (!dir) return;
+    for (const o of pendingManualOrders(dir)) {
+      finishManualOrder(dir, o, 'rejected', `Not done: ${why}.`, this.now());
+      log.warn(`Website ${o.kind.toUpperCase()} ${o.symbol} (by ${o.requestedBy}) rejected: ${why}`);
+    }
+  }
+
+  /** Buy and sell requests from the website, handled during market hours with every risk rule applied. */
+  private async processManualOrders(ctx: TickCtx) {
+    const dir = this.d.paths.manualOrders;
+    if (!dir) return;
+    for (const o of pendingManualOrders(dir)) {
+      let r: { ok: boolean; message: string };
+      try {
+        const ageMin = (this.now().getTime() - new Date(o.requestedAt).getTime()) / 60_000;
+        if (!(ageMin <= MANUAL_ORDER_MAX_AGE_MIN)) r = { ok: false, message: `Expired: not handled within ${MANUAL_ORDER_MAX_AGE_MIN} minutes (was the engine stopped or the market closed?). Place it again if you still want it.` };
+        else if (this.d.broker.name !== 'paper') r = { ok: false, message: 'Orders from the website work in paper trading only.' };
+        else r = o.kind === 'sell' ? await this.manualSell(o, ctx) : await this.manualBuy(o, ctx);
+      } catch (e) {
+        if (isAuthError(e)) throw e;
+        r = { ok: false, message: `Error: ${(e as Error).message}. Check Paper Portfolio; the engine keeps managing any order it already sent.` };
+      }
+      finishManualOrder(dir, o, r.ok ? 'done' : 'rejected', r.message, this.now());
+      log.info(`Website ${o.kind.toUpperCase()} ${o.symbol} (by ${o.requestedBy}) ${r.ok ? 'done' : 'rejected'}: ${r.message}`);
+      this.save();
+    }
+  }
+
+  private async manualSell(o: ManualOrder, ctx: TickCtx): Promise<{ ok: boolean; message: string }> {
+    const p = this.state.positions[o.symbol];
+    if (!p) return { ok: false, message: `There is no open paper position in ${o.symbol}.` };
+    if (p.exitReason) return { ok: true, message: `${o.symbol} is already being sold (${p.exitReason}).` };
+    const qty = p.qty;
+    this.requestExit(p, `manual sell from the website (${o.requestedBy})`);
+    await this.processExit(p, ctx);
+    const left = this.state.positions[o.symbol];
+    return { ok: true, message: left ? `Selling ${left.qty} of ${qty} shares at market; it completes on the next checks.` : `Sold ${qty} shares at market.` };
+  }
+
+  private async manualBuy(o: ManualOrder, ctx: TickCtx): Promise<{ ok: boolean; message: string }> {
+    const { strategy, risk } = this.d.cfg;
+    const no = (message: string) => ({ ok: false, message });
+    if (ctx.blocked.length) return no(`New buys are blocked right now: ${[...new Set(ctx.blocked)].join('; ')}.`);
+    if (this.state.positions[o.symbol]) return no(`You already hold ${o.symbol}.`);
+    if (this.intentsFor(o.symbol, (i) => i.kind === 'entry' && (i.day === ctx.today || !FINAL_INTENT.has(i.status))).length) {
+      return no(`${o.symbol} was already bought or tried today (one buy per stock per day).`);
+    }
+    const inFlight = Object.values(this.state.intents).filter((i) => i.kind === 'entry' && !FINAL_INTENT.has(i.status) && !this.state.positions[i.symbol]);
+    if (Object.keys(this.state.positions).length + inFlight.length >= risk.maxOpenPositions) return no(`Already at the limit of ${risk.maxOpenPositions} open positions.`);
+
+    let c;
+    try {
+      c = await this.candles(o.symbol, ctx.today);
+    } catch (e) {
+      return no(`No usable price data for ${o.symbol} today (${(e as Error).message}). Check the NSE symbol.`);
+    }
+    const a = atr(c, strategy.atrPeriod).at(-1);
+    if (a === undefined || !isPositive(a)) return no(`Not enough price history for ${o.symbol} to place a stop-loss.`);
+    const px = (await this.d.broker.getLtp([o.symbol]))[o.symbol];
+    const bad = validateEntryPrice(px, c.at(-1)!.close, risk.maxPriceDeviationPct);
+    if (bad) return no(`Price check failed: ${bad}.`);
+    const price = px!;
+    const stop = price - strategy.stopAtr * a;
+    if (!(stop > 0)) return no('Could not place a sensible stop-loss below the price.');
+
+    const { equity, cash, ltp } = await this.equity();
+    if (dailyLossBreached(this.state.dayStartEquity ?? NaN, equity, risk)) return no('The daily loss limit is reached; no new buys today.');
+    const exposure =
+      Object.values(this.state.positions).reduce((s, p) => s + p.qty * ltp[p.symbol]!, 0) + inFlight.reduce((s, i) => s + (i.qty - i.appliedQty) * price, 0);
+    const size = positionSize({ equity, cash, price, stop, exposure }, risk, costModel(this.d.cfg));
+    if (size.qty === 0) return no(`The risk rules allow no shares: ${size.reason}.`);
+    const qty = o.maxQty ? Math.min(o.maxQty, size.qty) : size.qty;
+
+    const intent = this.newIntent('entry', o.symbol, 'BUY', qty, ctx.today, {
+      plannedStop: stop,
+      highestClose: c.at(-1)!.close,
+      reason: `manual buy from the website (${o.requestedBy})`,
+      manual: true,
+    });
+    log.info(`BUY ${o.symbol} ${qty} @ ~₹${price.toFixed(2)}, stop ₹${stop.toFixed(2)} (manual, website, ${o.requestedBy}; ${size.reason}) [${intent.id}]`);
+    await this.send(intent);
+    if (intent.status === 'working') await this.resolveSoon(intent, ctx);
+    const p = this.state.positions[o.symbol];
+    if (p) await this.protect(p, ctx);
+    this.save();
+    if (!p) {
+      return intent.status === 'rejected' || intent.status === 'cancelled'
+        ? no(`The order was ${intent.status}${intent.lastError ? `: ${intent.lastError}` : ''}.`)
+        : { ok: true, message: `Buy order for ${qty} shares sent; waiting for the fill.` };
+    }
+    const capped = o.maxQty && o.maxQty < size.qty ? ` (your limit ${o.maxQty})` : o.maxQty && o.maxQty > size.qty ? ` (the risk rules allowed ${size.qty} of the ${o.maxQty} you asked for)` : '';
+    return {
+      ok: true,
+      message: `Bought ${p.qty} shares at ₹${p.entryPrice.toFixed(2)}${capped}. Stop-loss ₹${p.stop.toFixed(2)} ${p.protection === 'confirmed' ? 'is active' : 'is being placed'}.`,
+    };
+  }
+
   // ---------------------------------------------------------------- strategy
 
   private async candles(symbol: string, today: string) {
@@ -736,6 +864,17 @@ export class Engine {
       if (p.exitReason) continue;
       try {
         const c = await this.candles(p.symbol, ctx.today);
+        if (p.manual) {
+          // Hand-picked position: no strategy exit, only a trailing stop that never moves down.
+          const a = atr(c, strategy.atrPeriod).at(-1);
+          p.highestClose = Math.max(p.highestClose, c.at(-1)!.close);
+          const trail = a !== undefined && isPositive(a) ? p.highestClose - strategy.trailAtr * a : p.stop;
+          if (trail > p.stop) {
+            log.info(`Trail ${p.symbol} (manual) desired stop ₹${p.stop.toFixed(2)} -> ₹${trail.toFixed(2)}`);
+            p.stop = trail;
+          }
+          continue;
+        }
         const d = exitSignal(c, computeIndicators(c, strategy), c.length - 1, p, strategy);
         if (d.exit) {
           this.requestExit(p, d.reason);

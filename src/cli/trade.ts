@@ -1,6 +1,7 @@
 import { loadTradingConfig, paths } from '../config';
 import { broker, loadEnv, marketData } from '../factory';
 import { Engine } from '../trading/engine';
+import { acquireLock, clearStopRequest } from '../trading/runLock';
 import { log, setLogFile } from '../util/log';
 import { sleep } from '../util/time';
 import { parseArgs } from './args';
@@ -29,7 +30,7 @@ if (flags.has('live') && env.tradingMode !== 'live') {
 }
 
 const market = marketData(env, cfg);
-const engine = new Engine({ broker: broker(env, cfg, market), market, cfg, paths });
+const engine = new Engine({ broker: broker(env, cfg, market), market, cfg, paths: { ...paths, stopRequest: paths.engineStopRequest } });
 
 if (flags.has('status')) {
   let ltp: Record<string, number> = {};
@@ -50,6 +51,14 @@ if (flags.has('status')) {
   for (const i of open) console.log(`  order ${i.id} ${i.kind} ${i.side} ${i.qty} ${i.symbol}: ${i.status}${i.brokerStatus ? ` (${i.brokerStatus})` : ''}`);
   process.exit(0);
 }
+
+// Only one engine may trade the account at a time, whether started here or from the website.
+const lock = acquireLock(paths.engineLock, { startedBy: process.env.ALGOTRADE_STARTED_BY || 'terminal', mode: env.tradingMode });
+if (!lock.ok) {
+  console.error(`Another engine is already running (process ${lock.holder.pid}, started ${lock.holder.startedAt} from ${lock.holder.startedBy}). Stop it first; two engines would double-trade.`);
+  process.exit(1);
+}
+clearStopRequest(paths.engineStopRequest); // an old stop request must not stop this new run
 
 if (env.tradingMode === 'live') {
   log.warn(`LIVE TRADING with real money via Kite. Risk ${cfg.risk.riskPerTrade * 100}% per trade, max ${cfg.risk.maxOpenPositions} positions, max order ₹${cfg.risk.maxOrderValue}. Starting in 10s, Ctrl+C to abort.`);
