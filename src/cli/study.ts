@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadStudyConfig, loadTradingConfig, paths } from '../config';
+import { readActiveStrategy } from '../trading/activeStrategy';
 import { GoogleNews } from '../data/googleNews';
 import { RateLimitError, YahooData } from '../data/yahoo';
 import { companyReport, summaryReport } from '../study/report';
@@ -14,6 +15,8 @@ import { parseArgs, symbolList } from './args';
 const { flags, opts } = parseArgs();
 const cfg = loadStudyConfig();
 const trading = loadTradingConfig();
+// The study's "entry signal today" column follows the strategy chosen for the engine.
+trading.strategy = { ...trading.strategy, name: readActiveStrategy(paths.activeStrategy, trading.strategy.name).name };
 const universe = symbolList(opts.symbols) ?? cfg.universe;
 const yahoo = new YahooData(trading.engine.exchange);
 const deps = {

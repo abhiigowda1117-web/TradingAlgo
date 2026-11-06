@@ -54,3 +54,81 @@ export function atr(candles: Candle[], period: number): number[] {
   }
   return out;
 }
+
+/** Simple moving average. NaN until `period` values are available. */
+export function sma(values: number[], period: number): number[] {
+  const out = new Array<number>(values.length).fill(NaN);
+  let sum = 0;
+  for (let i = 0; i < values.length; i++) {
+    sum += values[i]!;
+    if (i >= period) sum -= values[i - period]!;
+    if (i >= period - 1) out[i] = sum / period;
+  }
+  return out;
+}
+
+/**
+ * Highest value of the `period` bars BEFORE bar i (bar i itself excluded), so "close above the
+ * previous 55-day high" can be tested on bar i. NaN until `period` earlier bars exist.
+ */
+export function priorHighest(values: number[], period: number): number[] {
+  const out = new Array<number>(values.length).fill(NaN);
+  for (let i = period; i < values.length; i++) {
+    let m = -Infinity;
+    for (let j = i - period; j < i; j++) m = Math.max(m, values[j]!);
+    out[i] = m;
+  }
+  return out;
+}
+
+/** Lowest value of the `period` bars before bar i (bar i excluded). NaN until `period` earlier bars exist. */
+export function priorLowest(values: number[], period: number): number[] {
+  const out = new Array<number>(values.length).fill(NaN);
+  for (let i = period; i < values.length; i++) {
+    let m = Infinity;
+    for (let j = i - period; j < i; j++) m = Math.min(m, values[j]!);
+    out[i] = m;
+  }
+  return out;
+}
+
+/** Highest value of the `period` bars ending at bar i (bar i included). NaN until warmed up. */
+export function highest(values: number[], period: number): number[] {
+  const out = new Array<number>(values.length).fill(NaN);
+  for (let i = period - 1; i < values.length; i++) {
+    let m = -Infinity;
+    for (let j = i - period + 1; j <= i; j++) m = Math.max(m, values[j]!);
+    out[i] = m;
+  }
+  return out;
+}
+
+/**
+ * Supertrend (ATR bands around the bar midpoint). `value` is the active band: below price in an
+ * uptrend (dir 1), above price in a downtrend (dir -1). NaN until the ATR is warmed up.
+ */
+export function supertrend(candles: Candle[], period: number, mult: number): { value: number[]; dir: number[] } {
+  const a = atr(candles, period);
+  const value = new Array<number>(candles.length).fill(NaN);
+  const dir = new Array<number>(candles.length).fill(NaN);
+  let upper = NaN;
+  let lower = NaN;
+  let trend = 1;
+  for (let i = 0; i < candles.length; i++) {
+    if (Number.isNaN(a[i]!)) continue;
+    const c = candles[i]!;
+    const mid = (c.high + c.low) / 2;
+    const bu = mid + mult * a[i]!;
+    const bl = mid - mult * a[i]!;
+    const first = Number.isNaN(upper);
+    const prevClose = i > 0 ? candles[i - 1]!.close : c.close;
+    upper = first || bu < upper || prevClose > upper ? bu : upper;
+    lower = first || bl > lower || prevClose < lower ? bl : lower;
+    if (first) trend = c.close >= mid ? 1 : -1;
+    else if (trend === 1 && c.close < lower) trend = -1;
+    else if (trend === -1 && c.close > upper) trend = 1;
+    value[i] = trend === 1 ? lower : upper;
+    dir[i] = trend;
+  }
+  return { value, dir };
+}

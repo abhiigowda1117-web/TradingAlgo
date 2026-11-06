@@ -1,5 +1,6 @@
 import type { RiskConfig, TradingConfig } from '../config';
 import { hhmm, NSE_CLOSE, NSE_OPEN } from '../util/time';
+import { isStrategyName, STRATEGY_IDS } from './strategyIds';
 
 export const isPositive = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x) && x > 0;
 
@@ -93,6 +94,7 @@ export function validateTradingConfig(cfg: TradingConfig): string[] {
   const e = cfg?.engine;
   const b = cfg?.backtest;
   if (!s || !r || !e || !b) return ['config must have strategy, risk, engine and backtest sections'];
+  if (s.name !== undefined && !isStrategyName(s.name)) errs.push(`strategy.name must be one of ${STRATEGY_IDS.join(', ')} (got ${JSON.stringify(s.name)})`);
 
   for (const k of ['fastEma', 'slowEma', 'trendEma', 'rsiPeriod', 'atrPeriod'] as const) num(`strategy.${k}`, s[k], 2, 500, { int: true });
   if (s.fastEma >= s.slowEma) errs.push('strategy.fastEma must be less than strategy.slowEma');

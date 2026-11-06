@@ -14,7 +14,8 @@ import { costModel, dailyLossBreached, isPositive, positionSize, validateEntryPr
 import { atr } from './indicators';
 import { finishManualOrder, pendingManualOrders, type ManualOrder } from './manualOrders';
 import { clearStopRequest, stopRequested } from './runLock';
-import { computeIndicators, entrySignal, exitSignal, warmupBars } from './strategy';
+import { readActiveStrategy } from './activeStrategy';
+import { computeIndicators, entrySignal, exitSignal, maxWarmupBars, strategyName, type StrategyName } from './strategy';
 
 /**
  * Lifecycle of one order the engine decided to send. Intents are saved BEFORE the order is sent,
@@ -60,6 +61,8 @@ export interface OrderIntent {
   studyScore?: number;
   /** Bought by hand from the website (paper only), not by the strategy. */
   manual?: boolean;
+  /** The strategy that decided this buy; the position later exits by the same strategy's rules. */
+  strategy?: StrategyName;
 }
 
 export type Protection = 'confirmed' | 'pending' | 'none';
@@ -86,6 +89,8 @@ export interface PositionState {
   mismatchCount?: number;
   /** Bought by hand from the website: kept on a trailing stop, not closed by the strategy's exit rule. */
   manual?: boolean;
+  /** The strategy that opened the position (absent on older positions: emaTrend). */
+  strategy?: StrategyName;
 }
 
 export interface EngineState {
@@ -110,6 +115,8 @@ export interface EnginePaths {
   manualOrders?: string;
   /** Optional: when this file appears, the engine finishes its current tick and exits cleanly. */
   stopRequest?: string;
+  /** Optional: strategy chosen on the website for new buys (see activeStrategy.ts). */
+  activeStrategy?: string;
 }
 
 export interface EngineDeps {
@@ -448,11 +455,12 @@ export class Engine {
         highestClose: intent.highestClose ?? price,
         protection: 'none',
         ...(intent.manual ? { manual: true } : {}),
+        ...(intent.strategy ? { strategy: intent.strategy } : {}),
       });
       p.entryPrice = (p.entryPrice * p.qty + value) / (p.qty + delta);
       p.qty += delta;
       log.info(`BUY FILL ${intent.symbol} ${delta} @ ₹${price.toFixed(2)} (now ${p.qty} @ ₹${p.entryPrice.toFixed(2)}, stop ₹${p.stop.toFixed(2)}) [${intent.id}]`);
-      this.recordTrade({ symbol: intent.symbol, side: 'BUY', qty: delta, price, stop: p.stop, reason: intent.reason, studyScore: intent.studyScore, intentId: intent.id, orderId: intent.orderId, ...(intent.manual ? { manual: true } : {}) });
+      this.recordTrade({ symbol: intent.symbol, side: 'BUY', qty: delta, price, stop: p.stop, reason: intent.reason, studyScore: intent.studyScore, intentId: intent.id, orderId: intent.orderId, ...(intent.manual ? { manual: true } : {}), ...(intent.strategy ? { strategy: intent.strategy } : {}) });
     } else {
       const p = this.state.positions[intent.symbol];
       if (!p) {
@@ -848,7 +856,7 @@ export class Engine {
   // ---------------------------------------------------------------- strategy
 
   private async candles(symbol: string, today: string) {
-    const from = new Date(this.now().getTime() - Math.ceil(warmupBars(this.d.cfg.strategy) * 1.6 + 30) * 86_400_000);
+    const from = new Date(this.now().getTime() - Math.ceil(maxWarmupBars(this.d.cfg.strategy) * 1.6 + 30) * 86_400_000);
     const c = await this.d.market.getDailyCandles(symbol, from, this.now());
     const last = c.at(-1);
     if (!last || istParts(last.time).date !== today) throw new Error(`no candle for today (latest ${last ? istParts(last.time).date : 'none'})`);
@@ -858,7 +866,9 @@ export class Engine {
 
   /** The once-a-day strategy pass. */
   async evaluate(ctx: TickCtx) {
-    const { strategy, risk } = this.d.cfg;
+    const { risk } = this.d.cfg;
+    const active = readActiveStrategy(this.d.paths.activeStrategy, strategyName(this.d.cfg.strategy)).name;
+    const strategy = { ...this.d.cfg.strategy, name: active };
 
     for (const p of Object.values(this.state.positions)) {
       if (p.exitReason) continue;
@@ -875,7 +885,8 @@ export class Engine {
           }
           continue;
         }
-        const d = exitSignal(c, computeIndicators(c, strategy), c.length - 1, p, strategy);
+        const own = { ...this.d.cfg.strategy, name: p.strategy ?? strategyName(this.d.cfg.strategy) };
+        const d = exitSignal(c, computeIndicators(c, own), c.length - 1, p, own);
         if (d.exit) {
           this.requestExit(p, d.reason);
           await this.processExit(p, ctx);
@@ -937,8 +948,9 @@ export class Engine {
           highestClose: c.at(-1)!.close,
           reason: sig.reason,
           studyScore: entry.combinedScore,
+          strategy: active,
         });
-        log.info(`BUY ${entry.symbol} ${size.qty} @ ~₹${price.toFixed(2)}, stop ₹${sig.stop.toFixed(2)} (${sig.reason}; ${size.reason}; study score ${entry.combinedScore}) [${intent.id}]`);
+        log.info(`BUY ${entry.symbol} ${size.qty} @ ~₹${price.toFixed(2)}, stop ₹${sig.stop.toFixed(2)} (${active}: ${sig.reason}; ${size.reason}; study score ${entry.combinedScore}) [${intent.id}]`);
         await this.send(intent);
         if (intent.status === 'working') await this.resolveSoon(intent, ctx);
         const p = this.state.positions[entry.symbol];

@@ -62,6 +62,7 @@ export async function engineStatus(
 
 export interface BacktestSummary {
   generatedAt: string;
+  strategyName: string;
   period: { from: string; to: string };
   strategyReturn: number | null;
   benchmarkReturn: number | null;
@@ -77,6 +78,7 @@ export function latestBacktest(path: string): BacktestSummary | null {
     const full = b.periods?.[0];
     return {
       generatedAt: b.generatedAt,
+      strategyName: b.strategy?.name ?? 'EMA Trend',
       period: { from: b.period?.from, to: b.period?.to },
       strategyReturn: full?.strategy?.totalReturn ?? null,
       benchmarkReturn: full?.benchmark?.totalReturn ?? null,

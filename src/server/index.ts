@@ -94,6 +94,8 @@ const routeDeps: RouteDeps = {
   // Website controls: start/stop the PAPER engine as a separate program, run jobs, queue paper orders.
   control: new ControlService({ root: ROOT, engineLock: paths.engineLock, engineStopRequest: paths.engineStopRequest, jobsLog: paths.jobsLog }, { tradingMode }),
   manualOrdersDir: paths.manualOrders,
+  activeStrategyFile: paths.activeStrategy,
+  strategyLabFile: paths.strategyLab,
 };
 
 const app = createApp({

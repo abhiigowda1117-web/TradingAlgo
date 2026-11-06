@@ -12,7 +12,7 @@ import { requestStop, runningEngine, stopRequested, type LockInfo } from '../../
  */
 
 export type SpawnFn = (cmd: string, args: string[], opts: SpawnOptions) => ChildProcess;
-export type JobName = 'study' | 'backtest';
+export type JobName = 'study' | 'backtest' | 'lab';
 
 export interface ControlPaths {
   root: string;
@@ -54,6 +54,7 @@ export class ControlError extends Error {
 const JOBS: Record<JobName, { label: string; args: string[] }> = {
   study: { label: 'Refresh watchlist (company study)', args: ['src/cli/study.ts'] },
   backtest: { label: 'Portfolio backtest vs NIFTY 50', args: ['src/cli/portfolio.ts', '--json', 'data/backtests/latest.json'] },
+  lab: { label: 'Strategy comparison (Strategy Lab)', args: ['src/cli/portfolio.ts', '--compare', '--json', 'data/backtests/lab.json'] },
 };
 export const JOB_NAMES = Object.keys(JOBS) as JobName[];
 const KEEP_LINES = 200;

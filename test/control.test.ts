@@ -68,7 +68,7 @@ async function setup(opts: { mode?: 'paper' | 'live'; now?: Date } = {}) {
   const control = new ControlService({ root: ROOT, engineLock: lock, engineStopRequest: join(dir, 'stop-request'), jobsLog: join(dir, 'jobs') }, { tradingMode: opts.mode ?? 'paper', spawn, stopTimeoutMs: 50 });
   const deps: RouteDeps = {
     files, backtestResult: join(dir, 'bt.json'), tradingConfig: tradingCfg, env: { TRADING_MODE: opts.mode ?? 'paper' }, quotes: async () => [],
-    control, manualOrdersDir: join(dir, 'orders'), now: () => opts.now ?? OPEN,
+    control, manualOrdersDir: join(dir, 'orders'), activeStrategyFile: join(dir, 'active.json'), strategyLabFile: join(dir, 'lab.json'), now: () => opts.now ?? OPEN,
   };
   const app = createApp({
     db: pool, users, sessions: new SessionRepo(pool, 3_600_000), logs: new SystemLogRepo(pool), allowedOrigins: ['http://localhost:5173'], cookieSecure: false, trustProxy: false,
@@ -237,5 +237,42 @@ describe('website controls: jobs', () => {
     r = await owner.post('/api/control/job', { job: 'backtest' });
     expect(r.status).toBe(200);
     expect(s.spawned[1]!.args.slice(-3)).toEqual(['src/cli/portfolio.ts', '--json', 'data/backtests/latest.json']);
+  });
+});
+
+describe('website controls: strategy choice', () => {
+  it('lists the strategies, the active one and the latest comparison', async () => {
+    const s = await setup();
+    writeFileSync(join(s.dir, 'lab.json'), JSON.stringify({ generatedAt: 'x', strategies: [{ id: 'rsi2' }] }));
+    const owner = await s.signIn('owner');
+    const v = (await (await owner.get('/api/strategies')).json()) as { strategies: { id: string }[]; active: { name: string; source: string }; lab: { strategies: unknown[] }; canControl: boolean };
+    expect(v.strategies.map((x) => x.id)).toEqual(['emaTrend', 'donchian', 'momentum52', 'rsi2', 'supertrend']);
+    expect(v.active).toEqual({ name: 'emaTrend', source: 'config' });
+    expect(v.lab.strategies).toHaveLength(1);
+    expect(v.canControl).toBe(true);
+  });
+
+  it('lets the owner pick the paper engine\'s strategy; refuses view-only accounts, unknown names and live mode', async () => {
+    const s = await setup();
+    const owner = await s.signIn('owner');
+    const r = await owner.post('/api/control/strategy', { name: 'donchian' });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toMatchObject({ name: 'donchian', changedBy: 'owner', source: 'website' });
+    expect(JSON.parse(readFileSync(join(s.dir, 'active.json'), 'utf8')).name).toBe('donchian');
+    expect((await owner.post('/api/control/strategy', { name: 'magic' })).status).toBe(400);
+    const friend = await s.signIn('friend');
+    expect((await friend.post('/api/control/strategy', { name: 'rsi2' })).status).toBe(403);
+    expect(JSON.parse(readFileSync(join(s.dir, 'active.json'), 'utf8')).name).toBe('donchian');
+    close?.();
+    const live = await setup({ mode: 'live' });
+    const r2 = await (await live.signIn('owner')).post('/api/control/strategy', { name: 'rsi2' });
+    expect(r2.status).toBe(403);
+  });
+
+  it('runs the strategy comparison as a background job', async () => {
+    const s = await setup();
+    const owner = await s.signIn('owner');
+    expect((await owner.post('/api/control/job', { job: 'lab' })).status).toBe(200);
+    expect(s.spawned[0]!.args.slice(-4)).toEqual(['src/cli/portfolio.ts', '--compare', '--json', 'data/backtests/lab.json']);
   });
 });

@@ -8,6 +8,10 @@ import type { ResearchRepo } from './db/repositories';
 import type { TradingConfig } from '../config';
 import type { ApiActions, ApiRoutes } from './app';
 import { listManualOrders, queueManualOrder } from '../trading/manualOrders';
+import { readActiveStrategy, writeActiveStrategy } from '../trading/activeStrategy';
+import { STRATEGIES } from '../trading/strategy';
+import { isStrategyName } from '../trading/strategyIds';
+import { existsSync, readFileSync } from 'node:fs';
 import { ControlError, ControlService } from './services/control';
 import { HttpError } from './app';
 import { dashboardTrades, engineStatus, latestBacktest, settingsView } from './services/dashboard';
@@ -43,6 +47,9 @@ export interface RouteDeps {
   control?: ControlService;
   /** Folder for manual paper orders handed to the engine (see trading/manualOrders.ts). */
   manualOrdersDir?: string;
+  /** Strategy chosen on the website for the engine's new buys, and the latest Strategy Lab results. */
+  activeStrategyFile?: string;
+  strategyLabFile?: string;
   now?: () => Date;
 }
 
@@ -90,6 +97,12 @@ export function apiActions(d: RouteDeps): ApiActions {
       return { killSwitch: readKillSwitch(d.files.killSwitch) };
     },
     '/api/control/job': (b, s) => asHttp(() => control().runJob(String(b.job ?? ''), s.username)),
+    '/api/control/strategy': (b, s) => {
+      if (!d.activeStrategyFile) throw new HttpError(503, 'Strategy selection is not available on this server');
+      if (d.env.TRADING_MODE === 'live') throw new HttpError(403, 'The strategy can be changed from the website in paper trading only.');
+      if (!isStrategyName(b.name)) throw new HttpError(400, 'Unknown strategy');
+      return writeActiveStrategy(d.activeStrategyFile, b.name, s.username, d.now?.() ?? new Date());
+    },
     '/api/control/order': (b, s) => {
       if (!d.manualOrdersDir) throw new HttpError(503, 'Paper orders are not available on this server');
       if (d.env.TRADING_MODE === 'live') throw new HttpError(403, 'Orders from the website work in paper trading only.');
@@ -186,6 +199,23 @@ export function apiRoutes(d: RouteDeps): ApiRoutes {
 
   return {
     '/api/control': (_q, s) => controlView(d, s.canControl !== false),
+    '/api/strategies': (_q, s) => {
+      let lab: unknown = null;
+      if (d.strategyLabFile && existsSync(d.strategyLabFile)) {
+        try {
+          lab = JSON.parse(readFileSync(d.strategyLabFile, 'utf8'));
+        } catch {
+          lab = null;
+        }
+      }
+      return {
+        strategies: STRATEGIES,
+        active: readActiveStrategy(d.activeStrategyFile, d.tradingConfig.strategy.name),
+        lab,
+        canControl: s.canControl !== false,
+        tradingMode: d.env.TRADING_MODE === 'live' ? 'live' : 'paper',
+      };
+    },
     '/api/engine/status': status,
     '/api/dashboard/summary': async () => {
       const engine = await status();

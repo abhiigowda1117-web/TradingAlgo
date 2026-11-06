@@ -1,6 +1,9 @@
 import { join } from 'node:path';
 import { writeJsonAtomic } from '../util/fs';
-import { loadStudyConfig, loadTradingConfig, ROOT } from '../config';
+import { loadStudyConfig, loadTradingConfig, paths, ROOT } from '../config';
+import { readActiveStrategy } from '../trading/activeStrategy';
+import { STRATEGIES, STRATEGY_IDS, type StrategyName } from '../trading/strategy';
+import { isStrategyName } from '../trading/strategyIds';
 import { cachedCandles } from '../data/candleCache';
 import { membershipFilter, readConstituents } from '../data/constituents';
 import { readCandlesCsv, readSeriesCsv } from '../data/csv';
@@ -20,6 +23,8 @@ import { parseArgs, symbolList } from './args';
 //   npm run portfolio -- --csv-dir mydata                # offline: <SYMBOL>.csv files + NIFTY50.csv
 //   add --trades to list every trade, --refresh to re-download cached prices,
 //   --json <file> to also save the results (used by the web app's Backtest tab)
+//   --strategy <name>  emaTrend | donchian | momentum52 | rsi2 | supertrend (default: the active strategy)
+//   --compare          run every strategy on the same data (with --json: the web app's Strategy Lab)
 const { flags, opts } = parseArgs();
 const cfg = loadTradingConfig();
 const today = istParts(new Date()).date;
@@ -86,8 +91,15 @@ if (opts['benchmark-csv']) {
 }
 
 // ---- run
-const result = runPortfolioBacktest(candles, {
-  strategy: cfg.strategy,
+const active = readActiveStrategy(paths.activeStrategy, cfg.strategy.name).name;
+const chosen = opts.strategy ?? active;
+if (!isStrategyName(chosen)) {
+  console.error(`--strategy must be one of ${STRATEGY_IDS.join(', ')}`);
+  process.exit(1);
+}
+const strategyLabel = (id: StrategyName) => STRATEGIES.find((x) => x.id === id)!.name;
+const runWith = (name: StrategyName) => runPortfolioBacktest(candles, {
+  strategy: { ...cfg.strategy, name },
   risk: cfg.risk,
   costs: cfg.backtest.costs,
   slippagePct: cfg.backtest.slippagePct,
@@ -96,6 +108,7 @@ const result = runPortfolioBacktest(candles, {
   end: to,
   isEligible: members ? membershipFilter(members) : undefined,
 });
+const result = runWith(chosen);
 if (result.calendar.length < 2) {
   console.error('Not enough trading days in the chosen period.');
   process.exit(1);
@@ -114,14 +127,59 @@ const periods: [string, string, string][] = [
   ['Test (out-of-sample)', result.calendar.find((d) => d >= split)!, last],
 ];
 
+const universeSource = members ? `point-in-time membership from ${opts.constituents}` : opts.symbols ? 'symbols given with --symbols' : "fixed list from config/study.json: TODAY'S large caps";
+
+// ---- compare every strategy on the same data, periods and benchmark (Strategy Lab)
+if (flags.has('compare')) {
+  const n = result.calendar.length;
+  const step = Math.max(1, Math.floor(n / 300));
+  const keep = (_: unknown, i: number) => i % step === 0 || i === n - 1;
+  const runs = STRATEGY_IDS.map((id) => ({ id, r: id === chosen ? result : runWith(id) }));
+  const sum = (r: typeof result, a: string, b: string) => summarizeStrategy(r, a, b, a === first ? capital : undefined);
+  const benchSum = (a: string, b: string) => summarizeCurve('NIFTY 50', bench.curve, a, b, a === first ? capital : undefined);
+  const p = (x: number) => (Number.isFinite(x) ? `${(x * 100).toFixed(1)}%` : '∞');
+  console.log(`\n=== Strategy comparison: ${first} to ${last}, test period from ${periods[2]![1]} ===`);
+  console.log(`  ${'Strategy'.padEnd(24)}${'Return'.padStart(10)}${'CAGR'.padStart(9)}${'Max DD'.padStart(9)}${'Trades'.padStart(8)}${'Win %'.padStart(8)}${'Test ret.'.padStart(11)}`);
+  for (const { id, r } of runs) {
+    const f = sum(r, first, last);
+    const t = sum(r, periods[2]![1], last);
+    console.log(`  ${strategyLabel(id).padEnd(24)}${p(f.totalReturn).padStart(10)}${p(f.cagr).padStart(9)}${p(f.maxDrawdown).padStart(9)}${String(f.trades ?? 0).padStart(8)}${(f.winRate === undefined ? '' : p(f.winRate)).padStart(8)}${p(t.totalReturn).padStart(11)}`);
+  }
+  const bf = benchSum(first, last);
+  const bt = benchSum(periods[2]![1], last);
+  console.log(`  ${'NIFTY 50 (buy & hold)'.padEnd(24)}${p(bf.totalReturn).padStart(10)}${p(bf.cagr).padStart(9)}${p(bf.maxDrawdown).padStart(9)}${'1'.padStart(8)}${''.padStart(8)}${p(bt.totalReturn).padStart(11)}`);
+  console.log('\nSame universe, costs, risk rules and fills for every strategy. Settings are textbook defaults, not tuned. One historical path is not proof of an edge.');
+  if (opts.json) {
+    writeJsonAtomic(opts.json, {
+      generatedAt: new Date().toISOString(),
+      period: { from: first, to: last, split: periods[2]![1], tradingDays: n },
+      universe: { count: Object.keys(candles).length, source: universeSource, missing },
+      benchmark: { label: benchLabel, kind: benchKind, periods: periods.map(([label, a, b]) => ({ ...benchSum(a, b), label })) },
+      settings: { capital, maxOpenPositions: cfg.risk.maxOpenPositions, riskPerTrade: cfg.risk.riskPerTrade, slippagePct: cfg.backtest.slippagePct },
+      activeAtRun: active,
+      days: result.calendar.filter(keep),
+      benchmarkCurve: bench.curve.filter(keep).map((x) => Math.round(x.equity)),
+      strategies: runs.map(({ id, r }) => ({
+        id,
+        name: strategyLabel(id),
+        periods: periods.map(([label, a, b]) => ({ ...sum(r, a, b), label })),
+        liquidation: r.liquidationValue,
+        curve: r.curve.filter(keep).map((x) => Math.round(x.equity)),
+      })),
+      survivorshipBias: !members,
+    });
+    console.log(`Results saved to ${opts.json}`);
+  }
+  process.exit(0);
+}
+
 // ---- report
 const pct = (x?: number) => (x === undefined ? '' : Number.isFinite(x) ? `${(x * 100).toFixed(1)}%` : '∞');
 const inr = (x?: number) => (x === undefined ? '' : `₹${Math.round(x).toLocaleString('en-IN')}`);
 const num = (x?: number) => (x === undefined ? '' : Number.isFinite(x) ? x.toFixed(2) : '∞');
 const row = (label: string, a: string, b: string) => console.log(`  ${label.padEnd(24)}${a.padStart(16)}${b.padStart(16)}`);
 
-console.log('\n=== Portfolio backtest vs NIFTY 50 ===');
-const universeSource = members ? `point-in-time membership from ${opts.constituents}` : opts.symbols ? 'symbols given with --symbols' : "fixed list from config/study.json: TODAY'S large caps";
+console.log(`\n=== Portfolio backtest vs NIFTY 50: ${strategyLabel(chosen)} strategy ===`);
 console.log(`Universe: ${Object.keys(candles).length} stocks (${universeSource})`);
 if (missing.length) console.log(`Excluded, no price data: ${missing.join(', ')}`);
 console.log(`Benchmark: ${benchLabel}${aligned.filledDays.length ? `; ${aligned.filledDays.length} missing days filled with the previous close` : ''}`);
@@ -186,6 +244,7 @@ if (opts.json) {
   const step = Math.max(1, Math.floor(result.curve.length / 400));
   writeJsonAtomic(opts.json, {
     generatedAt: new Date().toISOString(),
+    strategy: { id: chosen, name: strategyLabel(chosen) },
     period: { from: first, to: last, split, tradingDays: result.calendar.length },
     universe: { count: Object.keys(candles).length, source: universeSource, missing },
     benchmark: { label: benchLabel, kind: benchKind, filledDays: aligned.filledDays.length },

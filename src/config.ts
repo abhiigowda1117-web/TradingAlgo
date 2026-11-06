@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import type { StrategyName } from './trading/strategyIds';
 import type { CostSchedule } from './trading/costs';
 import { validateTradingConfig } from './trading/risk';
 import type { MetricKey } from './types';
@@ -20,6 +21,8 @@ export const paths = {
   backtestResult: resolve(ROOT, 'data/backtests/latest.json'),
   jobsLog: resolve(ROOT, 'logs/jobs'),
   manualOrders: resolve(ROOT, 'data/manual-orders'),
+  activeStrategy: resolve(ROOT, 'data/active-strategy.json'),
+  strategyLab: resolve(ROOT, 'data/backtests/lab.json'),
   engineLock: resolve(ROOT, 'data/engine.lock'),
   engineStopRequest: resolve(ROOT, 'data/engine.stop-request'),
 };
@@ -50,6 +53,8 @@ export interface StudyConfig {
 }
 
 export interface StrategyConfig {
+  /** Which strategy's rules to use (default emaTrend). The rest are emaTrend's settings; ATR settings are shared by all. */
+  name?: StrategyName;
   fastEma: number;
   slowEma: number;
   trendEma: number;
