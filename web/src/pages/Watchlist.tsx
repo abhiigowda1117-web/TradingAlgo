@@ -1,3 +1,4 @@
+import { JobRunner } from '../components/Controls';
 import { Card, Empty, ErrorBox, Loading, PageHeader } from '../components/ui';
 import { istTime, pct, signedPoints, tone } from '../lib/format';
 import type { MarketOverview, Watchlist as WL } from '../lib/types';
@@ -8,12 +9,15 @@ export function Watchlist() {
   const market = useApi<MarketOverview>('/api/market/overview', 120_000);
   return (
     <>
-      <PageHeader title="Market Watchlist" description="Stocks the company study approved. The engine only buys from this list. Refresh it weekly with npm run study." />
+      <PageHeader title="Market Watchlist" description="Stocks the company study approved. The engine only buys from this list, and refuses a list older than 7 days, so refresh it at least weekly." />
+      <Card title="Refresh the watchlist" className="mb-4">
+        <JobRunner job="study" onDone={wl.reload} />
+      </Card>
       {wl.error && <ErrorBox message={wl.error} />}
       {!wl.data ? (
         <Loading />
       ) : wl.data.entries.length === 0 ? (
-        <Empty>No watchlist yet. Run <code>npm run study</code> in the project folder.</Empty>
+        <Empty>No watchlist yet. Press <b>Refresh watchlist now</b> above.</Empty>
       ) : (
         <div className="space-y-4">
           <Card title={`Watchlist · generated ${istTime(wl.data.generatedAt)}`}>

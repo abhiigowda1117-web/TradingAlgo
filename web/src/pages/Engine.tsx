@@ -1,3 +1,4 @@
+import { EngineControls, EngineLog } from '../components/Controls';
 import { Badge, Card, Empty, ErrorBox, Loading, PageHeader } from '../components/ui';
 import { ago, inr, istTime } from '../lib/format';
 import type { EngineStatus } from '../lib/types';
@@ -16,7 +17,10 @@ export function Engine() {
   const { data: e, error } = useApi<EngineStatus>('/api/engine/status', 30_000);
   return (
     <>
-      <PageHeader title="Trading Engine" description="Status of the paper-trading engine, read from its files. The website never places orders; the engine runs as its own process." />
+      <PageHeader title="Trading Engine" description="Start, stop and pause the paper-trading engine from here. It runs as its own program and applies every risk rule; paper money only." />
+      <Card title="Control" className="mb-4">
+        <EngineControls />
+      </Card>
       {error && <ErrorBox message={error} />}
       {!e ? (
         <Loading />
@@ -35,13 +39,8 @@ export function Engine() {
             </dl>
             {e.errors.map((x) => <ErrorBox key={x} message={x} />)}
           </Card>
-          <Card title="Control (Phase 2)">
-            <p className="text-sm text-slate-400">Buttons for the kill switch and engine jobs come in Phase 2. For now, from a Command Prompt in the project folder:</p>
-            <pre className="mt-3 overflow-x-auto rounded-lg bg-ink-950 p-3 text-xs text-slate-300">{`npm run trade                 start the paper engine
-npm run trade -- --status     positions and protection
-type nul > STOP               kill switch: no new entries
-echo FLATTEN> STOP            kill switch: sell all, stop
-del STOP                      resume`}</pre>
+          <Card title="Engine log (latest activity)">
+            <EngineLog />
           </Card>
           <Card title="Orders in progress" className="lg:col-span-2">
             {e.openOrders.length === 0 ? (

@@ -125,3 +125,46 @@ export interface MarketMovers {
   quoteTime: string | null;
   dataNote: string;
 }
+
+export interface ManualOrderView {
+  id: string;
+  kind: 'buy' | 'sell';
+  symbol: string;
+  maxQty?: number;
+  requestedBy: string;
+  requestedAt: string;
+  status: 'queued' | 'done' | 'rejected';
+  message?: string;
+  finishedAt?: string;
+}
+
+export interface JobView {
+  job: 'study' | 'backtest';
+  state: 'running' | 'succeeded' | 'failed';
+  startedAt: string;
+  finishedAt?: string;
+  exitCode?: number | null;
+  startedBy: string;
+  lines: string[];
+}
+
+/** GET /api/control: everything the control panels show. */
+export interface ControlView {
+  canControl: boolean;
+  tradingMode: 'paper' | 'live';
+  available: boolean;
+  engine: {
+    running: boolean;
+    pid?: number;
+    startedAt?: string;
+    startedBy?: string;
+    mode?: 'paper' | 'live';
+    stopRequested: boolean;
+    lastExit?: { at: string; code: number | null; lines: string[] };
+  } | null;
+  killSwitch: 'off' | 'halt' | 'flatten';
+  market: { open: boolean; label: string; istTime: string; holiday: boolean };
+  job: JobView | null;
+  orders: ManualOrderView[];
+  log: string[];
+}

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { BullBearArena } from '../components/BullBearFight';
 import { EquityChart } from '../components/EquityChart';
+import { EngineControls } from '../components/Controls';
 import { MoversBoard, moversRefreshMs, TickerTape } from '../components/MarketMovers';
 import { Badge, Card, Empty, ErrorBox, Loading, Stat } from '../components/ui';
 import { ago, inr, inrShort, istTime, num, pct, signedPct, signedPoints, tone } from '../lib/format';
@@ -49,6 +50,7 @@ export function Dashboard() {
               <div className="flex justify-between"><dt className="text-slate-400">Kill switch</dt><dd><Badge color={e.killSwitch === 'off' ? 'green' : 'red'}>{e.killSwitch.toUpperCase()}</Badge></dd></div>
               <div className="flex justify-between"><dt className="text-slate-400">Last daily evaluation</dt><dd>{e.lastEvaluated ?? '—'}</dd></div>
               <div className="flex justify-between"><dt className="text-slate-400">Entries halted</dt><dd>{e.haltedOn ? `Yes (${e.haltedOn})` : 'No'}</dd></div>
+              <div className="border-t border-ink-800 pt-2"><EngineControls compact /></div>
             </dl>
           )}
         </Card>
@@ -97,7 +99,7 @@ export function Dashboard() {
             </>
           ) : (
             <Empty>
-              No backtest saved yet. Run <code className="text-slate-300">npm run portfolio -- --json data/backtests/latest.json</code> to see the strategy vs NIFTY 50 chart here.
+              No backtest saved yet. Open <Link to="/backtest" className="text-accent">Backtesting</Link> and press <b>Run backtest now</b> to see the strategy vs NIFTY 50 chart here.
             </Empty>
           )}
         </Card>
@@ -108,7 +110,7 @@ export function Dashboard() {
           ) : !watchlist.data ? (
             <Loading />
           ) : watchlist.data.entries.length === 0 ? (
-            <Empty>No watchlist yet. Run <code className="text-slate-300">npm run study</code>.</Empty>
+            <Empty>No watchlist yet. Open <Link to="/watchlist" className="text-accent">Market Watchlist</Link> and press <b>Refresh watchlist now</b>.</Empty>
           ) : (
             <table className="table">
               <thead><tr><th>Stock</th><th className="num">Score</th><th className="num">Today</th></tr></thead>

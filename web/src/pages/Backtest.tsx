@@ -1,3 +1,4 @@
+import { JobRunner } from '../components/Controls';
 import { EquityChart } from '../components/EquityChart';
 import { Card, Empty, ErrorBox, Loading, PageHeader, Stat } from '../components/ui';
 import { istTime, signedPct, tone } from '../lib/format';
@@ -5,19 +6,19 @@ import type { BacktestSummary } from '../lib/types';
 import { useApi } from '../lib/useApi';
 
 export function Backtest() {
-  const { data, error } = useApi<BacktestSummary | { none: true; hint: string }>('/api/backtest/latest');
+  const { data, error, reload } = useApi<BacktestSummary | { none: true; hint: string }>('/api/backtest/latest');
   const b = data && !('none' in data) ? data : null;
   return (
     <>
-      <PageHeader title="Backtesting" description="Latest saved portfolio backtest vs the NIFTY 50. Running backtests from the website and full metrics come in Phase 2." />
+      <PageHeader title="Backtesting" description="Latest saved portfolio backtest vs the NIFTY 50. Historical simulation with Indian trading costs; past results do not guarantee future returns." />
+      <Card title="Run a new backtest" className="mb-4">
+        <JobRunner job="backtest" onDone={reload} />
+      </Card>
       {error && <ErrorBox message={error} />}
       {!data ? (
         <Loading />
       ) : !b ? (
-        <Empty>
-          No backtest saved yet. In the project folder run:
-          <pre className="mt-2 text-xs text-slate-300">npm run portfolio -- --json data/backtests/latest.json</pre>
-        </Empty>
+        <Empty>No backtest saved yet. Press <b>Run backtest now</b> above.</Empty>
       ) : (
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

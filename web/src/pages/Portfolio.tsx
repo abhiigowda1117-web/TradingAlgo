@@ -1,13 +1,19 @@
+import { BuyForm, ManualOrdersTable, SellButton, useControl } from '../components/Controls';
 import { Badge, Card, Empty, ErrorBox, Loading, PageHeader, Stat } from '../components/ui';
 import { inr, inrShort, pct, tone } from '../lib/format';
 import type { EngineStatus } from '../lib/types';
 import { useApi } from '../lib/useApi';
 
 export function Portfolio() {
-  const { data: e, error } = useApi<EngineStatus>('/api/engine/status', 60_000);
+  const { data: e, error, reload } = useApi<EngineStatus>('/api/engine/status', 15_000);
+  const control = useControl(5000);
+  const refresh = () => {
+    void reload();
+    void control.reload();
+  };
   return (
     <>
-      <PageHeader title="Paper Trading Portfolio" description="Simulated money only. Prices are delayed (Yahoo Finance)." />
+      <PageHeader title="Paper Trading Portfolio" description="Simulated money only. Buy and sell here; the engine carries out each order with its risk rules. Prices are delayed (Yahoo Finance)." />
       {error && <ErrorBox message={error} />}
       {!e ? (
         <Loading />
@@ -20,13 +26,16 @@ export function Portfolio() {
             <Stat label="Today's P&L" value={e.dayPnl == null ? '—' : inr(e.dayPnl)} valueClass={tone(e.dayPnl)} />
           </div>
           {e.priceError && <ErrorBox message={e.priceError} />}
+          <Card title="Buy a stock (paper)">
+            <BuyForm control={control.data} reload={refresh} />
+          </Card>
           <Card title="Positions">
             {e.positions.length === 0 ? (
               <Empty>No open positions.</Empty>
             ) : (
               <div className="overflow-x-auto">
                 <table className="table">
-                  <thead><tr><th>Stock</th><th className="num">Qty</th><th className="num">Avg price</th><th className="num">Last</th><th className="num">Value</th><th className="num">P&L</th><th className="num">Stop</th><th>Protection</th></tr></thead>
+                  <thead><tr><th>Stock</th><th className="num">Qty</th><th className="num">Avg price</th><th className="num">Last</th><th className="num">Value</th><th className="num">P&L</th><th className="num">Stop</th><th>Protection</th><th className="num">Action</th></tr></thead>
                   <tbody>
                     {e.positions.map((p) => (
                       <tr key={p.symbol}>
@@ -38,12 +47,16 @@ export function Portfolio() {
                         <td className={`num ${tone(p.pnl)}`}>{inr(p.pnl)}</td>
                         <td className="num">{inr(p.protectedStop ?? p.stop, 2)}</td>
                         <td>{p.exitReason ? <Badge color="amber">Exiting</Badge> : <Badge color={p.protection === 'confirmed' ? 'green' : 'red'}>{p.protection === 'confirmed' ? 'Stop confirmed' : `Unprotected (${p.protection})`}</Badge>}</td>
+                        <td className="num">{p.exitReason ? <span className="text-xs text-slate-500">Selling…</span> : <SellButton symbol={p.symbol} control={control.data} reload={refresh} />}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             )}
+          </Card>
+          <Card title="Orders from the website">
+            <ManualOrdersTable orders={control.data?.orders ?? []} />
           </Card>
         </div>
       )}

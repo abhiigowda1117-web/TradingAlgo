@@ -99,6 +99,15 @@ Open **http://localhost:3001** and sign in. Press Ctrl+C to stop.
 
 **Windows, one click:** double-click `start-algotrade.cmd` in the TradingAlgo folder. It stops any old server on port 3001, runs `git pull`, installs anything new, rebuilds the website, starts the server and opens the browser. Keep its window open; closing it stops the website.
 
+### Control everything from the website (paper trading only)
+No terminal needed once the site is running:
+- **Trading Engine** page: **Start engine** / **Stop engine**, and the kill switch (**Normal**, **Pause new buys**, **Sell everything & stop**), plus the engine's live log. Only one engine can run at a time (`data/engine.lock`), whether started here or with `npm run trade`; a second one refuses to start.
+- **Paper Portfolio** page: **Buy** any NSE stock and **Sell** any position. The running engine carries out each order within a minute, during market hours only, with the same risk rules as its own trades (about 1% of the account at risk, at most 20% in one stock, at most 5 positions, daily loss limit, kill switch) and places a stop-loss at once. Hand-picked positions keep a trailing stop and are not closed by the strategy's exit rule. Orders not handled within 30 minutes expire.
+- **Market Watchlist** page: **Refresh watchlist now** (runs the company study). **Backtesting** page: **Run backtest now**.
+
+The website never starts the engine in live mode and never sends orders itself. Every button press is logged with the username. Accounts made with `npm run user:create -- --username friend --viewer` can look but cannot use any of these buttons.
+
+
 For frontend development with live reload, use two windows: `npm run server` in one and `npm run web:dev` in the other, then open http://localhost:5173.
 
 ### Live prices from Zerodha Kite (optional)
