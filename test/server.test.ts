@@ -129,8 +129,9 @@ describe('database', () => {
 });
 
 describe('server configuration', () => {
-  it('requires a database URL and HTTPS cookies in production', () => {
-    expect(() => loadServerConfig({})).toThrow(/DATABASE_URL/);
+  it('needs no database URL (built-in database), rejects a malformed one, and requires HTTPS cookies in production', () => {
+    expect(loadServerConfig({}).databaseUrl).toBe('');
+    expect(() => loadServerConfig({ DATABASE_URL: 'mysql://x' })).toThrow(/DATABASE_URL must be empty/);
     expect(() => loadServerConfig({ DATABASE_URL: 'postgres://u:p@localhost/db', NODE_ENV: 'production', COOKIE_SECURE: 'false' })).toThrow(/COOKIE_SECURE/);
     const c = loadServerConfig({ DATABASE_URL: 'postgres://u:p@localhost/db' });
     expect(c).toMatchObject({ port: 3001, host: '127.0.0.1', cookieSecure: false });

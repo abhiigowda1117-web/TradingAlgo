@@ -55,39 +55,28 @@ Outputs: `data/watchlist.json` (read by the trading engine) and `reports/<date>/
 
 Banks and NBFCs often have no debt/equity or current ratio on Yahoo. With `"onMissing": "pass"` they are not penalised for missing data; set it to `"fail"` to be strict.
 
-## AlgoTrade website (Phase 1: private, runs on your computer)
+## AlgoTrade website (private, runs on your computer)
 
-A private, password-protected web app (React + Vite + Tailwind frontend, Node REST API, PostgreSQL).
+A private, password-protected web app (React + Vite + Tailwind frontend, Node REST API, built-in database).
 
-- **Pages:** Dashboard, Company Research, Market Watchlist, Trading Engine, Paper Portfolio, Backtesting, Risk Management, Trade History, Reports and Settings.
-- **Phase 1 data:** the dashboard, watchlist, engine, portfolio, trades, backtest, risk and settings pages show real, read-only data. Research and Reports are placeholders until Phase 2.
-- **It never places orders.** The trading engine still runs separately with `npm run trade`.
+- **Pages:** Dashboard, Company Research, Market Watchlist, Trading Engine, Paper Portfolio, Strategy Lab, Backtesting, Risk Management, Trade History, Reports and Settings.
+- **Paper trading only** from the website; the engine never runs live from here.
 
-### One-time setup (Windows)
+### Setup on any computer (Windows)
 
-1. **Install PostgreSQL (free).** Download the Windows installer from https://www.postgresql.org/download/windows/, run it, and keep the defaults (port 5432). **Write down the password** you set for the `postgres` user.
-2. **Create the database.** Open **SQL Shell (psql)** from the Start menu, press Enter at each prompt, type your password, then run:
+Nothing to install except **Node.js 22.13 or newer** (LTS from https://nodejs.org) and **Git** (https://git-scm.com). No database server: the website keeps its data in a file, `data/algotrade.db`.
+
+1. **Get the code** (PowerShell):
    ```
-   CREATE DATABASE algotrade;
+   cd $HOME
+   git clone -b feature/web-platform-foundation https://github.com/abhiigowda1117-web/TradingAlgo.git TradingAlgo
    ```
-3. **Get the code and install** (in Command Prompt):
-   ```
-   cd %USERPROFILE%\TradingAlgo
-   git fetch
-   git checkout feature/web-platform-foundation
-   npm install
-   npm run web:install
-   ```
-4. **Configure.** Open `.env` with `notepad .env` and add this line, replacing YOURPASSWORD (see `.env.example` for all options):
-   ```
-   DATABASE_URL=postgres://postgres:YOURPASSWORD@localhost:5432/algotrade
-   ```
-5. **Create the tables and your account:**
-   ```
-   npm run db:migrate
-   npm run user:create -- --username yourname
-   ```
-   You'll be asked for a password twice; nothing appears while you type. Use at least 10 characters.
+2. **Start it:** double-click `start-algotrade.cmd` in the `TradingAlgo` folder. The first time it creates `.env` with safe defaults, installs, builds and opens the browser.
+3. **Create your account** on the page that appears (only possible on the computer running AlgoTrade, and only while no account exists).
+
+**Move to another computer:** stop the website, copy the `TradingAlgo\data` folder (accounts, saved research, paper portfolio, watchlist, backtests) into the new computer's `TradingAlgo` folder, and start it there. Phones and other devices open it through Tailscale or home Wi-Fi with no address settings: the site accepts its own IP address or Tailscale name automatically.
+
+**PostgreSQL instead (optional, e.g. on a hosting server):** set `DATABASE_URL=postgres://...` in `.env`; tables are created on the first start.
 
 ### Run it
 

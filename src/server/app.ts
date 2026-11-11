@@ -46,6 +46,40 @@ export interface AppDeps {
 }
 
 export const COOKIE = 'algotrade_sid';
+
+const isIpLiteral = (h: string) => /^\d{1,3}(\.\d{1,3}){3}$/.test(h) || /^\[[0-9a-f:.]+\]$/i.test(h);
+const hostname = (host: string) => (host.startsWith('[') ? host.slice(0, host.indexOf(']') + 1) : host.split(':')[0]!).toLowerCase();
+
+/**
+ * A page served by this server may call its own API without being listed in APP_ORIGIN, so the phone,
+ * Tailscale and other computers work with no settings. To stop DNS rebinding (a hostile site renaming
+ * itself to this server), that only applies when the address is an IP, localhost, a Tailscale name, or
+ * a host already listed in APP_ORIGIN.
+ */
+export function sameOriginAllowed(origin: string, host: string | undefined, allowed: string[]): boolean {
+  if (!host) return false;
+  let o: URL;
+  try {
+    o = new URL(origin);
+  } catch {
+    return false;
+  }
+  if (o.host.toLowerCase() !== host.toLowerCase()) return false;
+  const name = hostname(host);
+  const listed = allowed.some((a) => {
+    try {
+      return new URL(a).hostname.toLowerCase() === name;
+    } catch {
+      return false;
+    }
+  });
+  return listed || name === 'localhost' || isIpLiteral(name) || name.endsWith('.ts.net');
+}
+
+const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
+/** First-run account creation is only offered to the person at the computer running the site. */
+const atThisComputer = (req: IncomingMessage) =>
+  LOOPBACK.has(req.socket.remoteAddress ?? '') && ['localhost', '127.0.0.1', '[::1]'].includes(hostname(String(req.headers.host ?? '')));
 const CSP = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'";
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -139,6 +173,26 @@ export function createApp(d: AppDeps): Server {
     send(res, 200, { user: { username: user.username }, csrfToken: s.csrfToken }, { 'Set-Cookie': cookie(s.id, Math.floor(d.sessionTtlMs / 1000)) });
   }
 
+  /** Creates the very first account (full control) and signs it in. Only with no accounts, only at this computer. */
+  async function firstAccount(req: IncomingMessage, res: ServerResponse) {
+    const ip = clientIp(req);
+    if (loginLimiter.limited(ip)) throw new HttpError(429, 'Too many attempts. Try again in 15 minutes.');
+    if (!atThisComputer(req)) throw new HttpError(403, 'Create the first account on the computer that runs AlgoTrade, at http://localhost:3001.');
+    if ((await d.users.count()) > 0) throw new HttpError(409, 'An account already exists. Sign in instead.');
+    const body = await readJson(req);
+    const username = typeof body.username === 'string' ? body.username.trim().toLowerCase() : '';
+    const password = typeof body.password === 'string' ? body.password : '';
+    if (!/^[a-z0-9_.-]{3,32}$/.test(username)) throw new HttpError(400, 'Username: 3 to 32 characters, lowercase letters, digits, _ . -');
+    if (password.length < 10 || password.length > 200) throw new HttpError(400, 'Password: at least 10 characters');
+    await d.users.upsertOwner(username, await hashPassword(password));
+    loginLimiter.hit(ip); // counts toward the limit, so this cannot be hammered
+    const user = (await d.users.findByUsername(username))!;
+    const s = await d.sessions.create(user.id, { ip, userAgent: String(req.headers['user-agent'] ?? '') });
+    await d.users.touchLogin(user.id);
+    await d.logs.write('info', 'auth', 'First account created', { username, ip }).catch(() => undefined);
+    send(res, 200, { user: { username: user.username }, csrfToken: s.csrfToken }, { 'Set-Cookie': cookie(s.id, Math.floor(d.sessionTtlMs / 1000)) });
+  }
+
   async function health(res: ServerResponse) {
     let database: 'ok' | 'unavailable' = 'ok';
     try {
@@ -185,7 +239,7 @@ export function createApp(d: AppDeps): Server {
       const origin = req.headers.origin;
       const cors: Record<string, string> = {};
       if (origin) {
-        if (!d.allowedOrigins.includes(origin)) throw new HttpError(403, 'Origin not allowed');
+        if (!d.allowedOrigins.includes(origin) && !sameOriginAllowed(origin, req.headers.host, d.allowedOrigins)) throw new HttpError(403, 'Origin not allowed');
         Object.assign(cors, { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', Vary: 'Origin' });
       }
       if (req.method === 'OPTIONS') {
@@ -198,6 +252,11 @@ export function createApp(d: AppDeps): Server {
 
       if (path === '/api/health' && req.method === 'GET') return await health(res);
       if (path === '/api/auth/login' && req.method === 'POST') return await login(req, res);
+      if (path === '/api/setup' && req.method === 'GET') {
+        const needsAccount = (await d.users.count()) === 0;
+        return send(res, 200, { needsAccount, canCreateHere: needsAccount && atThisComputer(req) });
+      }
+      if (path === '/api/setup/account' && req.method === 'POST') return await firstAccount(req, res);
 
       const sid = parseCookies(req.headers.cookie)[COOKIE];
       const session = await d.sessions.get(sid);

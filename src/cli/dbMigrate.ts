@@ -1,22 +1,16 @@
 import 'dotenv/config';
-import { resolve } from 'node:path';
-import { ROOT } from '../config';
-import { migrate, poolTarget } from '../server/db/migrate';
-import { createPool, explainDbError } from '../server/db/pool';
+import { openDatabase } from '../server/db/open';
+import { explainDbError } from '../server/db/pool';
 
 // Usage: npm run db:migrate   (creates/updates the database tables; safe to run repeatedly)
-const url = process.env.DATABASE_URL;
-if (!url) {
-  console.error('Set DATABASE_URL in .env first, e.g. postgres://postgres:yourpassword@localhost:5432/algotrade');
-  process.exit(1);
-}
-const pool = createPool(url);
+// Not needed normally: the website server does this itself when it starts.
+const database = openDatabase({ databaseUrl: process.env.DATABASE_URL });
 try {
-  const applied = await migrate(poolTarget(pool), resolve(ROOT, 'db/migrations'));
-  console.log(applied.length ? `Applied: ${applied.join(', ')}` : 'Database is up to date.');
+  const applied = await database.migrate();
+  console.log(`${database.describe}: ${applied.length ? `applied ${applied.join(', ')}` : 'up to date'}.`);
 } catch (e) {
   console.error(`Migration failed: ${explainDbError(e)}`);
   process.exitCode = 1;
 } finally {
-  await pool.end();
+  await database.close();
 }

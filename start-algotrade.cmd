@@ -5,6 +5,19 @@ echo.
 echo  ===== AlgoTrade: update and start =====
 echo.
 
+rem Node.js 22.13 or newer has the built-in database AlgoTrade uses (no PostgreSQL needed).
+node -e "const [a,b]=process.versions.node.split('.').map(Number);process.exit(a>22||(a===22&&b>=13)?0:1)" >nul 2>&1
+if errorlevel 1 (
+  echo  Node.js 22.13 or newer is needed. Install the LTS version from https://nodejs.org and run this again.
+  pause
+  exit /b 1
+)
+rem First start on this computer: create the settings file from the template.
+if not exist ".env" (
+  copy ".env.example" ".env" >nul
+  echo  Created .env with default settings ^(built-in database, paper trading^).
+)
+
 echo [1/5] Stopping any old AlgoTrade web server on port 3001...
 for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":3001" ^| findstr "LISTENING"') do taskkill /F /PID %%p >nul 2>&1
 
@@ -30,6 +43,7 @@ if errorlevel 1 (
 echo [5/5] Starting the server. Your browser will open in a few seconds.
 echo.
 echo  KEEP THIS WINDOW OPEN. Closing it stops the website.
+echo  First time on this computer? The browser shows "Create your account".
 echo.
 start "" cmd /c "timeout /t 6 >nul & start http://localhost:3001"
 call npm.cmd run server

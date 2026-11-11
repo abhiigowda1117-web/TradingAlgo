@@ -8,8 +8,8 @@ import { LiveResearchSources } from '../research/sources';
 import { registerSecret } from '../util/log';
 import { createApp } from './app';
 import { loadServerConfig } from './config';
-import { migrate, poolTarget } from './db/migrate';
-import { createPool, explainDbError } from './db/pool';
+import { openDatabase } from './db/open';
+import { explainDbError } from './db/pool';
 import { ResearchRepo, SessionRepo, SystemLogRepo, UserRepo } from './db/repositories';
 import { apiActions, apiRoutes, cached, type RouteDeps } from './routes';
 import { ControlService } from './services/control';
@@ -23,17 +23,19 @@ for (const s of [process.env.KITE_API_KEY, process.env.KITE_API_SECRET, process.
 const tradingMode = process.env.TRADING_MODE === 'live' ? 'live' : 'paper';
 const version = (JSON.parse(readFileSync(resolve(ROOT, 'package.json'), 'utf8')) as { version: string }).version;
 
-const pool = createPool(cfg.databaseUrl);
+const database = openDatabase({ databaseUrl: cfg.databaseUrl });
+const pool = database.db;
 try {
-  const applied = await migrate(poolTarget(pool), resolve(ROOT, 'db/migrations'));
+  const applied = await database.migrate();
   if (applied.length) console.log(`Database migrations applied: ${applied.join(', ')}`);
+  console.log(`Database: ${database.describe}`);
 } catch (e) {
-  console.error(`Could not connect to or migrate the database:\n  ${explainDbError(e)}\nCheck DATABASE_URL in .env and that PostgreSQL is running.`);
+  console.error(`Could not open or migrate the database (${database.describe}):\n  ${explainDbError(e)}${database.kind === 'postgres' ? '\nCheck DATABASE_URL in .env and that PostgreSQL is running, or remove DATABASE_URL to use the built-in database.' : ''}`);
   process.exit(1);
 }
 const users = new UserRepo(pool);
 const sessions = new SessionRepo(pool, cfg.sessionTtlMs);
-if ((await users.count()) === 0) console.warn('No owner account yet. Create one:  npm run user:create -- --username yourname');
+if ((await users.count()) === 0) console.warn(`No account yet. Open http://localhost:${cfg.port} on this computer to create yours.`);
 setInterval(() => sessions.purgeExpired().catch(() => undefined), 3_600_000).unref();
 
 const sources = new LiveUpdateSources();

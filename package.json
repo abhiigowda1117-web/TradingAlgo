@@ -5,7 +5,7 @@
   "description": "NSE company study (screener, fundamental scoring, news sentiment, reports) feeding a live trading engine for Zerodha Kite.",
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.13"
   },
   "scripts": {
     "study": "tsx src/cli/study.ts",

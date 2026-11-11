@@ -3,8 +3,8 @@ import { createInterface } from 'node:readline';
 import { resolve } from 'node:path';
 import { ROOT } from '../config';
 import { hashPassword } from '../server/auth/password';
-import { migrate, poolTarget } from '../server/db/migrate';
-import { createPool, explainDbError } from '../server/db/pool';
+import { openDatabase } from '../server/db/open';
+import { explainDbError } from '../server/db/pool';
 import { UserRepo } from '../server/db/repositories';
 import { parseArgs } from './args';
 
@@ -16,10 +16,6 @@ const viewer = flags.has('viewer');
 const username = (opts.username ?? '').trim().toLowerCase();
 if (!/^[a-z0-9_.-]{3,32}$/.test(username)) {
   console.error('Usage: npm run user:create -- --username yourname   (3-32 characters: letters, digits, _ . -)');
-  process.exit(1);
-}
-if (!process.env.DATABASE_URL) {
-  console.error('Set DATABASE_URL in .env first.');
   process.exit(1);
 }
 
@@ -56,15 +52,15 @@ if (password !== again) {
   console.error('Passwords do not match.');
   process.exit(1);
 }
-const pool = createPool(process.env.DATABASE_URL);
+const database = openDatabase({ databaseUrl: process.env.DATABASE_URL });
 try {
-  await migrate(poolTarget(pool), resolve(ROOT, 'db/migrations'));
-  const result = await new UserRepo(pool).upsertOwner(username, await hashPassword(password), !viewer);
+  await database.migrate();
+  const result = await new UserRepo(database.db).upsertOwner(username, await hashPassword(password), !viewer);
   const kind = viewer ? 'View-only account' : 'Account (full control)';
   console.log(result === 'created' ? `${kind} "${username}" created. Start the site and sign in.` : `${kind} "${username}" updated: new password, and existing sessions were signed out.`);
 } catch (e) {
   console.error(`Could not save the account: ${explainDbError(e)}`);
   process.exitCode = 1;
 } finally {
-  await pool.end();
+  await database.close();
 }

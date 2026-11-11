@@ -4,6 +4,7 @@ import { ROOT } from '../config';
 
 /** Web server settings from environment variables. Secrets never leave the server. */
 export interface ServerConfig {
+  /** Empty: the built-in SQLite file. postgres://...: a PostgreSQL server. */
   databaseUrl: string;
   host: string;
   port: number;
@@ -21,7 +22,7 @@ const bool = (v: string | undefined, dflt: boolean) => (v === undefined || v ===
 export function loadServerConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   const errors: string[] = [];
   const databaseUrl = env.DATABASE_URL ?? '';
-  if (!/^postgres(ql)?:\/\//.test(databaseUrl)) errors.push('DATABASE_URL must be set, e.g. postgres://postgres:yourpassword@localhost:5432/algotrade');
+  if (databaseUrl && !/^postgres(ql)?:\/\//.test(databaseUrl)) errors.push('DATABASE_URL must be empty (built-in database) or a PostgreSQL address like postgres://postgres:yourpassword@localhost:5432/algotrade');
   const port = Number(env.PORT ?? 3001);
   if (!Number.isInteger(port) || port < 1 || port > 65535) errors.push(`PORT must be a port number, got "${env.PORT}"`);
   const ttlHours = Number(env.SESSION_TTL_HOURS ?? 12);

@@ -28,7 +28,7 @@ export class UserRepo {
   async findByUsername(username: string): Promise<User | undefined> {
     const r = await this.db.query('SELECT id, username, password_hash, role, can_control, last_login_at FROM users WHERE username = $1', [username.toLowerCase()]);
     const u = r.rows[0];
-    return u ? { id: Number(u.id), username: u.username, passwordHash: u.password_hash, role: u.role, canControl: u.can_control !== false, lastLoginAt: u.last_login_at ? new Date(u.last_login_at).toISOString() : null } : undefined;
+    return u ? { id: Number(u.id), username: u.username, passwordHash: u.password_hash, role: u.role, canControl: u.can_control !== false && u.can_control !== 0, lastLoginAt: u.last_login_at ? new Date(u.last_login_at).toISOString() : null } : undefined;
   }
 
   async count(): Promise<number> {
@@ -90,7 +90,7 @@ export class SessionRepo {
       await this.destroy(id);
       return undefined;
     }
-    return { userId: Number(s.user_id), username: s.username, csrfToken: s.csrf_token, expiresAt, canControl: s.can_control !== false };
+    return { userId: Number(s.user_id), username: s.username, csrfToken: s.csrf_token, expiresAt, canControl: s.can_control !== false && s.can_control !== 0 };
   }
 
   async destroy(id: string | undefined): Promise<void> {
