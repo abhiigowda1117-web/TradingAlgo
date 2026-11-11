@@ -11,6 +11,8 @@ import { listManualOrders, queueManualOrder } from '../trading/manualOrders';
 import { readActiveStrategy, writeActiveStrategy } from '../trading/activeStrategy';
 import { STRATEGIES } from '../trading/strategy';
 import { isStrategyName } from '../trading/strategyIds';
+import { readActiveProfile, writeActiveProfile } from '../study/activeProfile';
+import { isProfileId, PROFILES_INFO } from '../study/profiles';
 import { existsSync, readFileSync } from 'node:fs';
 import { ControlError, ControlService } from './services/control';
 import { HttpError } from './app';
@@ -50,6 +52,8 @@ export interface RouteDeps {
   /** Strategy chosen on the website for the engine's new buys, and the latest Strategy Lab results. */
   activeStrategyFile?: string;
   strategyLabFile?: string;
+  /** Stock-picking style (Buffett, Graham, ...) the company study uses to build the watchlist. */
+  activeProfileFile?: string;
   now?: () => Date;
 }
 
@@ -102,6 +106,12 @@ export function apiActions(d: RouteDeps): ApiActions {
       if (d.env.TRADING_MODE === 'live') throw new HttpError(403, 'The strategy can be changed from the website in paper trading only.');
       if (!isStrategyName(b.name)) throw new HttpError(400, 'Unknown strategy');
       return writeActiveStrategy(d.activeStrategyFile, b.name, s.username, d.now?.() ?? new Date());
+    },
+    '/api/control/profile': (b, s) => {
+      if (!d.activeProfileFile) throw new HttpError(503, 'Stock-picking styles are not available on this server');
+      if (d.env.TRADING_MODE === 'live') throw new HttpError(403, 'The stock-picking style can be changed from the website in paper trading only.');
+      if (!isProfileId(b.id)) throw new HttpError(400, 'Unknown stock-picking style');
+      return writeActiveProfile(d.activeProfileFile, b.id, s.username, d.now?.() ?? new Date());
     },
     '/api/control/order': (b, s) => {
       if (!d.manualOrdersDir) throw new HttpError(503, 'Paper orders are not available on this server');
@@ -216,6 +226,12 @@ export function apiRoutes(d: RouteDeps): ApiRoutes {
         tradingMode: d.env.TRADING_MODE === 'live' ? 'live' : 'paper',
       };
     },
+    '/api/profiles': (_q, s) => ({
+      profiles: PROFILES_INFO,
+      active: readActiveProfile(d.activeProfileFile),
+      canControl: s.canControl !== false,
+      tradingMode: d.env.TRADING_MODE === 'live' ? 'live' : 'paper',
+    }),
     '/api/engine/status': status,
     '/api/dashboard/summary': async () => {
       const engine = await status();

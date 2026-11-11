@@ -2,6 +2,8 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadStudyConfig, loadTradingConfig, paths } from '../config';
 import { readActiveStrategy } from '../trading/activeStrategy';
+import { readActiveProfile } from '../study/activeProfile';
+import { isProfileId, PROFILE_IDS, profileById, studyConfigFor } from '../study/profiles';
 import { GoogleNews } from '../data/googleNews';
 import { RateLimitError, YahooData } from '../data/yahoo';
 import { companyReport, summaryReport } from '../study/report';
@@ -11,9 +13,18 @@ import { log } from '../util/log';
 import { sleep } from '../util/time';
 import { parseArgs, symbolList } from './args';
 
-// Usage: npm run study [-- --symbols INFY,TCS] [--no-news] [--no-technicals]
+// Usage: npm run study [-- --symbols INFY,TCS] [--no-news] [--no-technicals] [--profile buffett]
+//   --profile: stock-picking style (balanced, buffett, graham, greenblatt, lynch, jhunjhunwala, qglp, oneil);
+//   default: the style chosen on the website (Market Watchlist page), else balanced.
 const { flags, opts } = parseArgs();
-const cfg = loadStudyConfig();
+const profileId = opts.profile ?? readActiveProfile(paths.activeProfile).id;
+if (!isProfileId(profileId)) {
+  console.error(`--profile must be one of ${PROFILE_IDS.join(', ')}`);
+  process.exit(1);
+}
+const profile = profileById(profileId);
+const cfg = studyConfigFor(loadStudyConfig(), profileId);
+log.info(`Stock-picking style: ${profile.name} (${profile.investor})`);
 const trading = loadTradingConfig();
 // The study's "entry signal today" column follows the strategy chosen for the engine.
 trading.strategy = { ...trading.strategy, name: readActiveStrategy(paths.activeStrategy, trading.strategy.name).name };
@@ -53,7 +64,7 @@ if (rateLimited || studies.length === 0) {
   if (studies.length === 0) process.exit(1);
 }
 
-const watchlist = buildWatchlist(studies, cfg.watchlist, now);
+const watchlist = buildWatchlist(studies, cfg.watchlist, now, { id: profile.id, name: profile.name, investor: profile.investor });
 // A partial study must not replace the watchlist the trading engine relies on.
 if (rateLimited) console.error(`Watchlist NOT updated (study incomplete); ${paths.watchlist} keeps the previous version. Reports for the studied companies are still written.\n`);
 else saveWatchlist(paths.watchlist, watchlist);

@@ -22,6 +22,7 @@ export const paths = {
   jobsLog: resolve(ROOT, 'logs/jobs'),
   manualOrders: resolve(ROOT, 'data/manual-orders'),
   activeStrategy: resolve(ROOT, 'data/active-strategy.json'),
+  activeProfile: resolve(ROOT, 'data/active-profile.json'),
   strategyLab: resolve(ROOT, 'data/backtests/lab.json'),
   engineLock: resolve(ROOT, 'data/engine.lock'),
   engineStopRequest: resolve(ROOT, 'data/engine.stop-request'),
@@ -45,7 +46,8 @@ export interface MetricScoring {
 
 export interface StudyConfig {
   universe: string[];
-  screen: { rules: ScreenRule[]; onMissing: 'pass' | 'fail' };
+  /** excludeSectors: sectors (as the data provider names them) that never qualify, e.g. banks for the Magic Formula. */
+  screen: { rules: ScreenRule[]; onMissing: 'pass' | 'fail'; excludeSectors?: string[] };
   scoring: Partial<Record<MetricKey, MetricScoring>>;
   sentiment: { lookbackDays: number; maxArticles: number; halfLifeDays: number };
   combine: { fundamentalWeight: number; sentimentWeight: number };

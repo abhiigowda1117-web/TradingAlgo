@@ -10,6 +10,8 @@ export interface RuleResult {
 export interface ScreenResult {
   passed: boolean;
   results: RuleResult[];
+  /** Set when the company's sector is excluded by the style. */
+  excludedSector?: string;
 }
 
 const compare: Record<CompareOp, (a: number, b: number) => boolean> = {
@@ -26,5 +28,6 @@ export function screen(f: CompanyFundamentals, cfg: StudyConfig['screen']): Scre
     const passed = value === undefined ? cfg.onMissing === 'pass' : compare[rule.op](value, rule.value);
     return { rule, value, passed };
   });
-  return { passed: results.every((r) => r.passed), results };
+  const excludedSector = f.sector && cfg.excludeSectors?.includes(f.sector) ? f.sector : undefined;
+  return { passed: !excludedSector && results.every((r) => r.passed), results, ...(excludedSector ? { excludedSector } : {}) };
 }

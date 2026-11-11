@@ -55,6 +55,22 @@ Outputs: `data/watchlist.json` (read by the trading engine) and `reports/<date>/
 
 Banks and NBFCs often have no debt/equity or current ratio on Yahoo. With `"onMissing": "pass"` they are not penalised for missing data; set it to `"fail"` to be strict.
 
+### Stock-picking styles (famous investors' rules)
+On the **Market Watchlist** page, choose whose rules build the watchlist, then press **Refresh watchlist now**. From the command line: `npm run study -- --profile buffett`. Each style is the investor's published rules applied to the study's free Yahoo data (with earnings yield, PEG and P/E × P/B worked out from it). The investor styles are strict: a company with a missing number fails rather than passes.
+
+| Style | Investor | Main rules | Pairs with (Strategy Lab) |
+|---|---|---|---|
+| Balanced (default) | AlgoTrade | `config/study.json` as above | EMA Trend |
+| Quality at a fair price | Warren Buffett | ROE ≥ 15%, D/E ≤ 0.5, net margin ≥ 10%, operating margin ≥ 15%, positive free cash flow, P/E ≤ 35 | Buy right, sit tight |
+| Defensive value | Benjamin Graham | P/E ≤ 15, P/E × P/B ≤ 22.5, current ratio ≥ 2, D/E ≤ 0.5, pays a dividend, market cap ≥ ₹5,000 cr | Buy right, sit tight |
+| Magic Formula | Joel Greenblatt | Ranked 50/50 on earnings yield and return on assets; no banks, financials or utilities | Buy right, sit tight |
+| Growth at a reasonable price | Peter Lynch | PEG ≤ 1, earnings growth 15–50%, D/E ≤ 0.6 | Minervini Trend Template |
+| Growth and quality at a sensible price | Rakesh Jhunjhunwala (inspired) | ROE ≥ 15%, earnings growth ≥ 15%, sales growth ≥ 10%, P/E ≤ 45, PEG ≤ 2, D/E ≤ 1.5 | Buy right, sit tight |
+| QGLP | Raamdeo Agrawal | ROE ≥ 20%, earnings and sales growth ≥ 15%, operating margin ≥ 15%, market cap ≥ ₹20,000 cr, PEG ≤ 1.5 | Buy right, sit tight |
+| CAN SLIM fundamentals | William O'Neil | Earnings growth ≥ 25%, sales growth ≥ 20%, ROE ≥ 17% | CAN SLIM breakout |
+
+Limits: Buffett and Jhunjhunwala never published a formula, so those two styles are close readings of what they said they look for, not their actual methods. Free data has one year of numbers, so moats, management quality and multi-year records cannot be checked. A style only filters and ranks; it never buys anything.
+
 ## AlgoTrade website (private, runs on your computer)
 
 A private, password-protected web app (React + Vite + Tailwind frontend, Node REST API, built-in database).
@@ -88,8 +104,8 @@ Open **http://localhost:3001** and sign in. Press Ctrl+C to stop.
 
 **Windows, one click:** double-click `start-algotrade.cmd` in the TradingAlgo folder. It stops any old server on port 3001, runs `git pull`, installs anything new, rebuilds the website, starts the server and opens the browser. Keep its window open; closing it stops the website.
 
-### Strategy Lab: five strategies, compared honestly
-The **Strategy Lab** page describes five long-only strategies in plain words and backtests all of them on the same stocks, period, costs and risk rules against simply holding the NIFTY 50:
+### Strategy Lab: nine strategies, compared honestly
+The **Strategy Lab** page describes nine long-only strategies in plain words and backtests all of them on the same stocks, period, costs and risk rules against simply holding the NIFTY 50:
 
 | Strategy | Style | Buys | Sells |
 |---|---|---|---|
@@ -98,8 +114,12 @@ The **Strategy Lab** page describes five long-only strategies in plain words and
 | 52-Week High Momentum | Momentum | Fresh 20-day closing high within 5% of the 52-week high, above rising 50/200-day averages | Close below the 50-day average, or 3-ATR trailing stop |
 | RSI-2 Pullback | Mean reversion | RSI(2) below 10 while above the 200-day average | Close above the 5-day average, or the 2-ATR stop |
 | Supertrend | Trend following | Supertrend (10, 3) flips up | Supertrend flips down (stop trails the line) |
+| Minervini Trend Template | Momentum (Mark Minervini) | All 8 Trend Template rules (above rising 50/150/200-day averages, ≥ 30% above the 52-week low, within 25% of the high), then a fresh 20-day closing high on volume ≥ 1.4× average | Close below the 50-day average; stop at most 8% below the buy, trailing 3 ATR |
+| CAN SLIM breakout | Growth breakout (William O'Neil) | Close breaks the previous 50-day high, within 15% of the 52-week high, on volume ≥ 1.4× average | +25% take profit, close below the 50-day average, or the 8% stop |
+| Weinstein Stage 2 | Stage analysis (Stan Weinstein) | Above a rising 150-day (30-week) average, fresh 50-day breakout on volume ≥ 2× average | Close below the 150-day average (stop trails to 5% below it) |
+| Buy right, sit tight | Long-term investing (Jhunjhunwala / QGLP) | Above a rising 200-day average and no more than 15% above it | Only when the close is more than 10% below the 200-day average |
 
-Settings are standard textbook values and were not tuned on the data. The results show the full period and an unseen **test period**; a strategy that lags the NIFTY 50 in the test period has no proven edge. Press **Use for paper trading** to choose the strategy for the paper engine's new buys. Each position remembers the strategy that bought it and is sold by that strategy's rules. From the command line: `npm run portfolio -- --strategy donchian`, or `npm run portfolio -- --compare`.
+Settings are standard textbook values (from each trader's own book) and were not tuned on the data. Minervini's relative-strength ranking and O'Neil's "M" (overall market direction) need data on the whole market and are not automated yet. The results show the full period and an unseen **test period**; a strategy that lags the NIFTY 50 in the test period has no proven edge. Press **Use for paper trading** to choose the strategy for the paper engine's new buys. Each position remembers the strategy that bought it and is sold by that strategy's rules. From the command line: `npm run portfolio -- --strategy donchian`, or `npm run portfolio -- --compare`.
 
 ### Control everything from the website (paper trading only)
 No terminal needed once the site is running:

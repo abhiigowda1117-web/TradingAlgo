@@ -84,6 +84,25 @@ export interface Watchlist {
   generatedAt: string | null;
   entries: { symbol: string; name: string; sector?: string; combinedScore: number; fundamentalScore: number; sentiment: number }[];
   rejected: { symbol: string; reason: string }[];
+  profile?: { id: ProfileInfo['id']; name: string; investor: string };
+}
+
+export interface ProfileInfo {
+  id: 'balanced' | 'buffett' | 'graham' | 'greenblatt' | 'lynch' | 'jhunjhunwala' | 'qglp' | 'oneil';
+  name: string;
+  investor: string;
+  summary: string;
+  picks: string[];
+  source: string;
+  limits: string;
+  pairsWith: string;
+}
+
+export interface ProfilesView {
+  profiles: ProfileInfo[];
+  active: { id: ProfileInfo['id']; changedBy?: string; changedAt?: string; source: 'website' | 'default' };
+  canControl: boolean;
+  tradingMode: 'paper' | 'live';
 }
 
 export interface Settings {
@@ -171,13 +190,15 @@ export interface ControlView {
 }
 
 export interface StrategyInfo {
-  id: 'emaTrend' | 'donchian' | 'momentum52' | 'rsi2' | 'supertrend';
+  id: 'emaTrend' | 'donchian' | 'momentum52' | 'rsi2' | 'supertrend' | 'minervini' | 'canslim' | 'weinstein' | 'buyHold';
   name: string;
   style: string;
   summary: string;
   buy: string;
   sell: string;
   suits: string;
+  inspiredBy?: string;
+  source?: string;
 }
 
 export interface PerfSummary {

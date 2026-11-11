@@ -8,12 +8,12 @@ import type { PerfSummary, StrategiesView, StrategyInfo, StrategyLab } from '../
 import { useApi } from '../lib/useApi';
 
 /**
- * Strategy Lab: the five strategies in plain words, an honest side-by-side backtest against the NIFTY 50
+ * Strategy Lab: the strategies in plain words, an honest side-by-side backtest against the NIFTY 50
  * (same stocks, costs and risk rules; textbook settings, not tuned), and the choice of strategy for the
  * PAPER engine's new buys.
  */
 
-const COLORS: Record<StrategyInfo['id'], string> = { emaTrend: '#3db8ff', donchian: '#f59e0b', momentum52: '#a3e635', rsi2: '#e879f9', supertrend: '#fb7185' };
+const COLORS: Record<StrategyInfo['id'], string> = { emaTrend: '#3db8ff', donchian: '#f59e0b', momentum52: '#a3e635', rsi2: '#e879f9', supertrend: '#fb7185', minervini: '#22d3ee', canslim: '#facc15', weinstein: '#c084fc', buyHold: '#34d399' };
 const NIFTY = '#94a3b8';
 const TEST = 2; // periods: [full, training, test]
 
@@ -37,7 +37,7 @@ function StrategyCard({ s, v, onChoose, busy }: { s: StrategyInfo; v: Strategies
             <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: COLORS[s.id] }} />
             {s.name}
           </h2>
-          <p className="text-xs text-slate-500">{s.style}</p>
+          <p className="text-xs text-slate-500">{s.style}{s.inspiredBy ? ` · ${s.inspiredBy}` : ''}</p>
         </div>
         {active && <Badge color="blue">Active (paper)</Badge>}
       </div>
@@ -46,6 +46,7 @@ function StrategyCard({ s, v, onChoose, busy }: { s: StrategyInfo; v: Strategies
         <div><dt className="inline font-semibold text-up">Buy: </dt><dd className="inline text-slate-300">{s.buy}</dd></div>
         <div><dt className="inline font-semibold text-down">Sell: </dt><dd className="inline text-slate-300">{s.sell}</dd></div>
         <div><dt className="inline font-semibold text-slate-400">Works best: </dt><dd className="inline text-slate-400">{s.suits}</dd></div>
+        {s.source && <div><dt className="inline font-semibold text-slate-500">Source: </dt><dd className="inline text-slate-500">{s.source}</dd></div>}
       </dl>
       {r && (
         <div className="grid grid-cols-3 gap-2 rounded-lg bg-ink-850 p-2 text-center text-xs">
@@ -140,7 +141,7 @@ export function Strategies() {
     <>
       <PageHeader
         title="Strategy Lab"
-        description="Five well-known trading strategies, compared honestly on the same stocks, costs and risk rules against simply holding the NIFTY 50. Pick which one the paper engine uses."
+        description="Well-known trading strategies from famous traders, compared honestly on the same stocks, costs and risk rules against simply holding the NIFTY 50. Pick which one the paper engine uses."
       />
       {error && <ErrorBox message={error} />}
       {!v ? (

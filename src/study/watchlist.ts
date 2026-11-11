@@ -14,15 +14,18 @@ export interface WatchlistEntry {
 
 export interface Watchlist {
   generatedAt: string;
+  /** The stock-picking style that built this list (absent: balanced). */
+  profile?: { id: string; name: string; investor: string };
   entries: WatchlistEntry[];
   rejected: { symbol: string; reason: string }[];
 }
 
 /** Picks the companies the trading engine may buy: passed the screen, decent news, top combined scores. */
-export function buildWatchlist(studies: CompanyStudy[], cfg: StudyConfig['watchlist'], now: Date = new Date()): Watchlist {
+export function buildWatchlist(studies: CompanyStudy[], cfg: StudyConfig['watchlist'], now: Date = new Date(), profile?: Watchlist['profile']): Watchlist {
   const rejected: Watchlist['rejected'] = [];
   const eligible = studies.filter((s) => {
-    const failed = s.screen.results.filter((r) => !r.passed).map((r) => `${r.rule.metric} ${r.rule.op} ${r.rule.value}`);
+    const failed = s.screen.results.filter((r) => !r.passed).map((r) => (r.value === undefined ? `${r.rule.metric} not available` : `${r.rule.metric} ${r.rule.op} ${r.rule.value}`));
+    if (s.screen.excludedSector) failed.unshift(`sector ${s.screen.excludedSector} excluded by this style`);
     const reason = failed.length
       ? `failed screen: ${failed.join(', ')}`
       : s.sentiment.score < cfg.minSentiment
@@ -37,6 +40,7 @@ export function buildWatchlist(studies: CompanyStudy[], cfg: StudyConfig['watchl
   for (const s of eligible.slice(cfg.topN)) rejected.push({ symbol: s.symbol, reason: `outside top ${cfg.topN}` });
   return {
     generatedAt: now.toISOString(),
+    ...(profile ? { profile } : {}),
     entries: eligible.slice(0, cfg.topN).map((s) => ({
       symbol: s.symbol,
       name: s.fundamentals.name,

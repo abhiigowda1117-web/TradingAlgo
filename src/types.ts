@@ -32,6 +32,10 @@ export interface CompanyFundamentals {
   currentRatio?: number;
   dividendYield?: number;
   freeCashflow?: number;
+  /** Derived from the figures above (see study/derived.ts), not reported by the provider. */
+  earningsYield?: number;
+  peg?: number;
+  peTimesPb?: number;
 }
 
 export type MetricKey = Exclude<keyof CompanyFundamentals, 'symbol' | 'name' | 'sector' | 'industry'>;

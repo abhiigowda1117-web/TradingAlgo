@@ -132,3 +132,26 @@ export function supertrend(candles: Candle[], period: number, mult: number): { v
   }
   return { value, dir };
 }
+
+/** Average of the `period` values BEFORE bar i (bar i excluded), e.g. "volume 40% above the 50-day average". */
+export function priorAverage(values: number[], period: number): number[] {
+  const out = new Array<number>(values.length).fill(NaN);
+  let sum = 0;
+  for (let i = 0; i < values.length; i++) {
+    if (i >= period) out[i] = sum / period;
+    sum += values[i]!;
+    if (i >= period) sum -= values[i - period]!;
+  }
+  return out;
+}
+
+/** Lowest value of the `period` bars ending at bar i (bar i included). NaN until warmed up. */
+export function lowest(values: number[], period: number): number[] {
+  const out = new Array<number>(values.length).fill(NaN);
+  for (let i = period - 1; i < values.length; i++) {
+    let m = Infinity;
+    for (let j = i - period + 1; j <= i; j++) m = Math.min(m, values[j]!);
+    out[i] = m;
+  }
+  return out;
+}

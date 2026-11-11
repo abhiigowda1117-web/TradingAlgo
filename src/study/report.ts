@@ -2,7 +2,7 @@ import type { MetricKey } from '../types';
 import type { CompanyStudy } from './study';
 import type { Watchlist } from './watchlist';
 
-const PCT: MetricKey[] = ['roe', 'roa', 'revenueGrowth', 'earningsGrowth', 'profitMargin', 'operatingMargin', 'dividendYield'];
+const PCT: MetricKey[] = ['roe', 'roa', 'revenueGrowth', 'earningsGrowth', 'profitMargin', 'operatingMargin', 'dividendYield', 'earningsYield'];
 const LABEL: Record<MetricKey, string> = {
   price: 'Price',
   marketCap: 'Market cap',
@@ -18,6 +18,9 @@ const LABEL: Record<MetricKey, string> = {
   currentRatio: 'Current ratio',
   dividendYield: 'Dividend yield',
   freeCashflow: 'Free cash flow',
+  earningsYield: 'Earnings yield (1 / P/E)',
+  peg: 'PEG (P/E ÷ earnings growth %)',
+  peTimesPb: 'P/E × P/B (Graham)',
 };
 
 export const crore = (x: number) => `₹${(x / 1e7).toLocaleString('en-IN', { maximumFractionDigits: 0 })} cr`;

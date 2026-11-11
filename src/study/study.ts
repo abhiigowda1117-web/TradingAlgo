@@ -5,6 +5,7 @@ import type { Candle, CompanyFundamentals } from '../types';
 import { fundamentalScore, type FundamentalScore } from './scoring';
 import { screen, type ScreenResult } from './screener';
 import { aggregateSentiment, type SentimentSummary } from './sentiment';
+import { withDerivedMetrics } from './derived';
 
 export interface TechnicalSnapshot {
   close: number;
@@ -71,7 +72,7 @@ export async function studyCompany(
   now: Date = new Date(),
 ): Promise<CompanyStudy> {
   const warnings: string[] = [];
-  const fundamentals = await deps.fundamentals.getFundamentals(symbol);
+  const fundamentals = withDerivedMetrics(await deps.fundamentals.getFundamentals(symbol));
   const fund = fundamentalScore(fundamentals, cfg.scoring);
   if (fund.coverage < 0.6) warnings.push(`Only ${(fund.coverage * 100).toFixed(0)}% of scoring metrics available`);
 

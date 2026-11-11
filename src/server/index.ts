@@ -98,6 +98,7 @@ const routeDeps: RouteDeps = {
   manualOrdersDir: paths.manualOrders,
   activeStrategyFile: paths.activeStrategy,
   strategyLabFile: paths.strategyLab,
+  activeProfileFile: paths.activeProfile,
 };
 
 const app = createApp({

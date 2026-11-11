@@ -68,7 +68,7 @@ async function setup(opts: { mode?: 'paper' | 'live'; now?: Date } = {}) {
   const control = new ControlService({ root: ROOT, engineLock: lock, engineStopRequest: join(dir, 'stop-request'), jobsLog: join(dir, 'jobs') }, { tradingMode: opts.mode ?? 'paper', spawn, stopTimeoutMs: 50 });
   const deps: RouteDeps = {
     files, backtestResult: join(dir, 'bt.json'), tradingConfig: tradingCfg, env: { TRADING_MODE: opts.mode ?? 'paper' }, quotes: async () => [],
-    control, manualOrdersDir: join(dir, 'orders'), activeStrategyFile: join(dir, 'active.json'), strategyLabFile: join(dir, 'lab.json'), now: () => opts.now ?? OPEN,
+    control, manualOrdersDir: join(dir, 'orders'), activeStrategyFile: join(dir, 'active.json'), strategyLabFile: join(dir, 'lab.json'), activeProfileFile: join(dir, 'profile.json'), now: () => opts.now ?? OPEN,
   };
   const app = createApp({
     db: pool, users, sessions: new SessionRepo(pool, 3_600_000), logs: new SystemLogRepo(pool), allowedOrigins: ['http://localhost:5173'], cookieSecure: false, trustProxy: false,
@@ -246,7 +246,7 @@ describe('website controls: strategy choice', () => {
     writeFileSync(join(s.dir, 'lab.json'), JSON.stringify({ generatedAt: 'x', strategies: [{ id: 'rsi2' }] }));
     const owner = await s.signIn('owner');
     const v = (await (await owner.get('/api/strategies')).json()) as { strategies: { id: string }[]; active: { name: string; source: string }; lab: { strategies: unknown[] }; canControl: boolean };
-    expect(v.strategies.map((x) => x.id)).toEqual(['emaTrend', 'donchian', 'momentum52', 'rsi2', 'supertrend']);
+    expect(v.strategies.map((x) => x.id)).toEqual(['emaTrend', 'donchian', 'momentum52', 'rsi2', 'supertrend', 'minervini', 'canslim', 'weinstein', 'buyHold']);
     expect(v.active).toEqual({ name: 'emaTrend', source: 'config' });
     expect(v.lab.strategies).toHaveLength(1);
     expect(v.canControl).toBe(true);
@@ -267,6 +267,26 @@ describe('website controls: strategy choice', () => {
     const live = await setup({ mode: 'live' });
     const r2 = await (await live.signIn('owner')).post('/api/control/strategy', { name: 'rsi2' });
     expect(r2.status).toBe(403);
+  });
+
+  it('lets the owner pick the stock-picking style; refuses view-only accounts, unknown styles and live mode', async () => {
+    const s = await setup();
+    const owner = await s.signIn('owner');
+    const v = (await (await owner.get('/api/profiles')).json()) as { profiles: { id: string }[]; active: { id: string; source: string } };
+    expect(v.profiles.map((p) => p.id)).toEqual(['balanced', 'buffett', 'graham', 'greenblatt', 'lynch', 'jhunjhunwala', 'qglp', 'oneil']);
+    expect(v.active).toEqual({ id: 'balanced', source: 'default' });
+    const r = await owner.post('/api/control/profile', { id: 'buffett' });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toMatchObject({ id: 'buffett', changedBy: 'owner', source: 'website' });
+    expect(JSON.parse(readFileSync(join(s.dir, 'profile.json'), 'utf8')).id).toBe('buffett');
+    expect((await owner.post('/api/control/profile', { id: 'soros' })).status).toBe(400);
+    expect((await owner.post('/api/control/profile', { id: '__proto__' })).status).toBe(400);
+    const friend = await s.signIn('friend');
+    expect((await friend.post('/api/control/profile', { id: 'graham' })).status).toBe(403);
+    expect(((await (await friend.get('/api/profiles')).json()) as { active: { id: string } }).active.id).toBe('buffett');
+    close?.();
+    const live = await setup({ mode: 'live' });
+    expect((await (await live.signIn('owner')).post('/api/control/profile', { id: 'graham' })).status).toBe(403);
   });
 
   it('runs the strategy comparison as a background job', async () => {
