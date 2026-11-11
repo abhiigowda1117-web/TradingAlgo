@@ -191,6 +191,22 @@ The report covers:
 4. **News and NSE announcements.**
 5. **Peer comparison.**
 6. **Rule-based summary:** business quality, financial strength, growth, risks, valuation, technical outlook, and bullish and bearish scenarios.
+7. **Buffett's analysis** (website button at the end of the report):
+   - **How he would read it:** Buffett's own order of questions (do I understand it, will it be stronger in 10–20 years, are the economics excellent, can I trust management, is the price sensible).
+   - **Checklist vs reality:** 12 tests, each showing what Buffett wants and what the company's annual statements actually show:
+     - consistent earning power
+     - pricing power (stable margins)
+     - return on equity ≥ 15% every year
+     - little or no debt
+     - margins vs peers
+     - owner earnings (cash vs profit)
+     - capital needs
+     - the "one-dollar" retained-earnings test
+     - price vs value
+     - moat, understanding and management (marked as your judgement)
+   - **Value check:** owner earnings discounted with assumptions you can change (defaults: past growth capped at 15%, 12% discount rate, 5% long-term growth, 25% margin of safety). This gives an estimate, not a target price.
+   - **His complete strategy:** 16 principles in his own words, each linked to the Berkshire Hathaway letter it comes from.
+   - Banks and insurers skip the debt, cash-flow and capital tests. Thresholds Buffett never stated as numbers are AlgoTrade's reading of his principles.
 
 The dashboard shows the same content with charts.
 

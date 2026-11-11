@@ -35,8 +35,37 @@ export interface ResearchReport {
   announcements: { status: 'ok' | 'unavailable'; items: { date: string; subject: string; detail?: string; link?: string; category: string }[]; error?: string; links: { label: string; url: string }[] };
   peers: { basis: string; rows: PeerRow[]; medians: Omit<PeerRow, 'symbol' | 'name' | 'error'> | null; note: string };
   assessment: Record<'businessQuality' | 'financialStrength' | 'growth' | 'risks' | 'valuation' | 'technical' | 'bullish' | 'bearish', Interp[]>;
+  buffett?: BuffettAnalysis;
   sources: { name: string; url?: string; retrievedAt: string; asOf?: string; note?: string }[];
   warnings: string[];
+}
+
+export type BuffettVerdict = 'meets' | 'close' | 'fails' | 'na' | 'judgement' | 'notApplicable';
+export interface BuffettCheck {
+  key: string;
+  group: 'Business' | 'Financial' | 'Management' | 'Value';
+  question: string;
+  buffettWants: string;
+  reality: string;
+  verdict: BuffettVerdict;
+  figures: { label: string; value: number | null; unit: Unit }[];
+}
+export interface BuffettAnalysis {
+  periods: string[];
+  financialSector: boolean;
+  checks: BuffettCheck[];
+  score: { met: number; close: number; failed: number; measurable: number; judgement: number };
+  verdict: 'strong' | 'mixed' | 'weak' | 'insufficient';
+  summary: string;
+  strengths: string[];
+  weaknesses: string[];
+  valuation: {
+    ownerEarnings: number | null; basis: string; marketCap: number | null; price: number | null;
+    ownerEarningsYield: number | null; earningsYield: number | null;
+    defaults: { growth: number; growthBasis: string; discountRate: number; terminalGrowth: number; years: number; marginOfSafety: number };
+    estimatedValue: number | null; discountToValue: number | null;
+  };
+  notes: string[];
 }
 
 export interface SavedResearch { id: number; symbol: string; name: string | null; generatedAt: string }

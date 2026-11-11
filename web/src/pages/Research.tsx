@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
+import { BuffettAnalysis } from '../components/BuffettAnalysis';
 import { BullBearFight } from '../components/BullBearFight';
 import { StockChart } from '../components/StockChart';
 import { Bars, TimeChart } from '../components/TimeChart';
@@ -143,6 +144,11 @@ function LiveStats({ symbol }: { symbol: string }) {
 function Report({ r }: { r: ResearchReport }) {
   const [showChart, setShowChart] = useState(false);
   const chartRef = useRef<HTMLDivElement>(null);
+  const [showBuffett, setShowBuffett] = useState(false);
+  const buffettRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (showBuffett) buffettRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [showBuffett]);
   useEffect(() => {
     if (showChart) chartRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [showChart]);
@@ -310,6 +316,24 @@ function Report({ r }: { r: ResearchReport }) {
       <Card title="Sources and data dates">
         <ul className="space-y-1 text-sm">{r.sources.map((s) => <li key={s.name}><Ext href={s.url}>{s.name}</Ext> <span className="text-slate-500">· retrieved {istTime(s.retrievedAt)}{s.asOf ? ` · latest data ${s.asOf}` : ''}{s.note ? ` · ${s.note}` : ''}</span></li>)}</ul>
       </Card>
+
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold">Buffett's analysis</h3>
+            <p className="text-xs text-slate-400">How Warren Buffett would read {r.overview.name ?? r.symbol}, his checklist against the real figures, a value check, and his complete strategy.</p>
+          </div>
+          <button type="button" className="btn" onClick={() => setShowBuffett((x) => !x)} aria-expanded={showBuffett} disabled={!r.buffett}>
+            {showBuffett ? "Hide Buffett's analysis" : "🎩 Buffett's analysis"}
+          </button>
+        </div>
+        {!r.buffett && <p className="mt-2 text-xs text-slate-500">This report was saved before Buffett's analysis existed. Tick “Fresh data” and search again.</p>}
+      </Card>
+      {showBuffett && r.buffett && (
+        <div ref={buffettRef} className="scroll-mt-16">
+          <BuffettAnalysis b={r.buffett} name={r.overview.name ?? r.symbol} />
+        </div>
+      )}
     </div>
   );
 }

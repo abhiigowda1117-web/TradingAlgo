@@ -1,5 +1,6 @@
 import { newsQueryName } from '../study/study';
 import { assess, type Assessment } from './assessment';
+import { buffettAnalysis, type BuffettAnalysis } from './buffett';
 import { analyzeFundamentals, type FundamentalsSection } from './fundamentals';
 import { classifyAnnouncements, classifyNews, type ClassifiedNews } from './news';
 import { officialLinks } from './nse';
@@ -35,6 +36,8 @@ export interface ResearchReport {
   announcements: { status: 'ok' | 'unavailable'; items: (Announcement & { category: string })[]; error?: string; links: { label: string; url: string }[] };
   peers: { basis: string; rows: PeerRow[]; medians: Omit<PeerRow, 'symbol' | 'name' | 'error'> | null; note: string };
   assessment: Assessment;
+  /** Warren Buffett's tests applied to the company's figures (absent in reports saved before it existed). */
+  buffett?: BuffettAnalysis;
   sources: SourceRef[];
   warnings: string[];
 }
@@ -170,6 +173,7 @@ export async function researchCompany(rawSymbol: string, src: ResearchSources, o
     announcements,
     peers,
     assessment: assess(fundamentals, technicals ?? emptyTechnicals(), news?.items ?? null, rows.slice(1).filter((r) => !r.error), profile.sector),
+    buffett: buffettAnalysis({ fundamentals, sector: profile.sector, industry: profile.industry, officers: profile.officers, price: profile.price, peerMedians: medians }),
     sources,
     warnings,
   };
