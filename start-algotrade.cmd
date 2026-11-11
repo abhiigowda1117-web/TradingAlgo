@@ -24,8 +24,18 @@ for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":3001" ^| findstr "LISTENING
 echo [2/5] Getting the latest version from GitHub...
 rem npm can rewrite the lock files on Windows; reset them so they never block the update.
 git checkout -- package-lock.json web/package-lock.json >nul 2>&1
-git pull
-if errorlevel 1 echo     (Could not update; starting the version you already have.)
+git fetch origin feature/web-platform-foundation
+git checkout feature/web-platform-foundation >nul 2>&1
+git pull --ff-only origin feature/web-platform-foundation
+if errorlevel 1 (
+  echo.
+  echo  *** COULD NOT DOWNLOAD THE UPDATE. You are still on the OLD version. ***
+  echo  Take a screenshot of this window and send it to Claude.
+  echo.
+  git status --short
+  pause
+)
+for /f "delims=" %%v in ('git log -1 --format^="%%h %%s (%%cd)" --date^=short') do echo     Version: %%v
 
 echo [3/5] Installing anything new (fast if nothing changed)...
 call npm.cmd install --no-audit --no-fund --loglevel=error
