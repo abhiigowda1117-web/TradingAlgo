@@ -186,7 +186,12 @@ function Report({ r }: { r: ResearchReport }) {
             <p className="text-sm text-slate-400">{[r.overview.sector, r.overview.industry].filter(Boolean).join(' · ') || 'Sector Not Available'}</p>
             <button type="button" className="btn mt-3" onClick={() => setShowChart((x) => !x)} aria-expanded={showChart}>
               {showChart ? 'Hide chart' : '📈 View Chart'}
-            </button>
+            </button>{' '}
+            {r.buffett && (
+              <button type="button" className="btn mt-3" onClick={() => (showBuffett ? buffettRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) : setShowBuffett(true))}>
+                🎩 Buffett's analysis
+              </button>
+            )}
           </div>
           <LivePrice symbol={r.symbol} fallback={r.overview.price} fallbackTime={r.overview.priceTime} />
         </div>

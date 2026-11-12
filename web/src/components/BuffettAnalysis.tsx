@@ -218,7 +218,7 @@ function Calculator({ v }: { v: BA['valuation'] }) {
   );
 }
 
-export function BuffettAnalysis({ b, name }: { b: BA; name: string }) {
+export function BuffettAnalysis({ b, name, withStrategy = true }: { b: BA; name: string; withStrategy?: boolean }) {
   const byKey = new Map(b.checks.map((c) => [c.key, c]));
   const scoreColor = b.verdict === 'strong' ? 'green' : b.verdict === 'mixed' ? 'amber' : b.verdict === 'weak' ? 'red' : 'gray';
   return (
@@ -281,24 +281,31 @@ export function BuffettAnalysis({ b, name }: { b: BA; name: string }) {
         <Calculator v={b.valuation} />
       </Card>
 
-      <Card title="Warren Buffett's complete strategy">
-        <p className="mb-3 text-sm text-slate-300">
-          Buffett never published a formula. These are the principles he has explained in 60 years of letters to Berkshire Hathaway shareholders, in his own words where possible. The checklist above tests the ones that numbers can measure.
-        </p>
-        <div className="grid gap-3 lg:grid-cols-2">
-          {STRATEGY.map((s) => (
-            <section key={s.title} className="rounded-lg border border-ink-700 bg-ink-850 p-3">
-              <h4 className="text-sm font-semibold">{s.title}</h4>
-              <p className="mt-1 text-xs text-slate-300">{s.body}</p>
-              {s.quote && <blockquote className="mt-2 border-l-2 border-accent/50 pl-2 text-xs italic text-slate-400">“{s.quote}”</blockquote>}
-              <p className="mt-1.5 text-[11px] text-slate-500">Source: {s.source}</p>
-            </section>
-          ))}
-        </div>
-        <p className="mt-3 text-xs text-slate-500">
-          Further reading: Robert Hagstrom, <i>The Warren Buffett Way</i> (his 12 tenets: business, management, financial and value); Lawrence Cunningham, <i>The Essays of Warren Buffett</i>; Frazzini, Kabiller &amp; Pedersen, <i>Buffett's Alpha</i> (2018).
-        </p>
-      </Card>
+      {withStrategy && <BuffettStrategy />}
     </div>
+  );
+}
+
+/** Warren Buffett's complete strategy: 16 principles with his words and sources. */
+export function BuffettStrategy() {
+  return (
+    <Card title="Warren Buffett's complete strategy">
+      <p className="mb-3 text-sm text-slate-300">
+        Buffett never published a formula. These are the principles he has explained in 60 years of letters to Berkshire Hathaway shareholders, in his own words where possible. The company checklist tests the ones that numbers can measure.
+      </p>
+      <div className="grid gap-3 lg:grid-cols-2">
+        {STRATEGY.map((s) => (
+          <section key={s.title} className="rounded-lg border border-ink-700 bg-ink-850 p-3">
+            <h4 className="text-sm font-semibold">{s.title}</h4>
+            <p className="mt-1 text-xs text-slate-300">{s.body}</p>
+            {s.quote && <blockquote className="mt-2 border-l-2 border-accent/50 pl-2 text-xs italic text-slate-400">“{s.quote}”</blockquote>}
+            <p className="mt-1.5 text-[11px] text-slate-500">Source: {s.source}</p>
+          </section>
+        ))}
+      </div>
+      <p className="mt-3 text-xs text-slate-500">
+        Further reading: Robert Hagstrom, <i>The Warren Buffett Way</i> (his 12 tenets: business, management, financial and value); Lawrence Cunningham, <i>The Essays of Warren Buffett</i>; Frazzini, Kabiller &amp; Pedersen, <i>Buffett's Alpha</i> (2018).
+      </p>
+    </Card>
   );
 }

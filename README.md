@@ -191,7 +191,7 @@ The report covers:
 4. **News and NSE announcements.**
 5. **Peer comparison.**
 6. **Rule-based summary:** business quality, financial strength, growth, risks, valuation, technical outlook, and bullish and bearish scenarios.
-7. **Buffett's analysis** (website button at the end of the report):
+7. **Buffett's analysis** (the **Buffett's Strategy** page in the left menu, or the 🎩 button at the top of any report):
    - **How he would read it:** Buffett's own order of questions (do I understand it, will it be stronger in 10–20 years, are the economics excellent, can I trust management, is the price sensible).
    - **Checklist vs reality:** 12 tests, each showing what Buffett wants and what the company's annual statements actually show:
      - consistent earning power

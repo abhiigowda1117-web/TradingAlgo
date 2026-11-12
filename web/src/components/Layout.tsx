@@ -10,6 +10,7 @@ import { Badge } from './ui';
 export const NAV = [
   { to: '/', label: 'Dashboard', icon: 'dashboard' },
   { to: '/research', label: 'Company Research', icon: 'research' },
+  { to: '/buffett', label: "Buffett's Strategy", icon: 'buffett' },
   { to: '/watchlist', label: 'Market Watchlist', icon: 'watchlist' },
   { to: '/engine', label: 'Trading Engine', icon: 'engine' },
   { to: '/portfolio', label: 'Paper Portfolio', icon: 'portfolio' },

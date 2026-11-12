@@ -3,6 +3,7 @@ import { Layout } from './components/Layout';
 import { Loading } from './components/ui';
 import { AuthProvider, useAuth } from './lib/auth';
 import { Backtest } from './pages/Backtest';
+import { Buffett } from './pages/Buffett';
 import { Strategies } from './pages/Strategies';
 import { Dashboard } from './pages/Dashboard';
 import { Engine } from './pages/Engine';
@@ -31,6 +32,7 @@ export function App() {
           <Route element={<Protected />}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/research" element={<Research />} />
+            <Route path="/buffett" element={<Buffett />} />
             <Route path="/watchlist" element={<Watchlist />} />
             <Route path="/engine" element={<Engine />} />
             <Route path="/portfolio" element={<Portfolio />} />
