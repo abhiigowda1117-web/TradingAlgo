@@ -44,13 +44,15 @@ rem ---- 4. public https link through Tailscale Funnel
 echo [4/4] Switching on your public link (Tailscale Funnel)...
 set "TS=tailscale"
 where tailscale >nul 2>&1 || set "TS=%ProgramFiles%\Tailscale\tailscale.exe"
-"%TS%" status >nul 2>&1
-if errorlevel 1 (
-  echo     Tailscale is not running or not signed in. Open Tailscale from the Start menu, sign in,
-  echo     then double-click this file again.
+if not "%TS%"=="tailscale" if not exist "%TS%" (
+  echo     Tailscale is not installed on THIS computer. Install it from https://tailscale.com/download/windows,
+  echo     sign in with the same account as your phone, then run this file again.
   pause
   exit /b 1
 )
+echo     Tailscale on this computer says:
+"%TS%" status
+echo.
 echo     If a web address appears below, open it in your browser, click "Enable" / "Allow",
 echo     then come back to this window and wait.
 "%TS%" funnel --bg 3001
