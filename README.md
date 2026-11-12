@@ -132,6 +132,19 @@ The website never starts the engine in live mode and never sends orders itself. 
 
 For frontend development with live reload, use two windows: `npm run server` in one and `npm run web:dev` in the other, then open http://localhost:5173.
 
+### Your computer as the server, with a free link that works anywhere (Windows)
+Double-click **`setup-anywhere-link.cmd`** once. It does four things:
+1. AlgoTrade starts hidden whenever Windows starts. It updates from GitHub first and restarts by itself if it stops.
+2. The computer won't go to sleep while plugged in.
+3. AlgoTrade starts now.
+4. **Tailscale Funnel** is switched on, giving a permanent `https://<computer>.<tailnet>.ts.net` link that opens on any phone or laptop, with no app needed on that device. The first time, Tailscale shows a web address: open it and click **Enable**.
+
+The link is saved in `MY-ALGOTRADE-LINK.txt` and as a Desktop shortcut. It works while the computer is on and online.
+- To stop AlgoTrade: double-click `stop-algotrade.cmd`.
+- To stop it starting with Windows: delete `AlgoTrade.vbs` from the Startup folder (`Win+R`, type `shell:startup`).
+
+In this mode the server only listens on the computer itself. The Tailscale link adds HTTPS, so open AlgoTrade through the link: the old `192.168…` and `100.…` addresses no longer work. Logs: `logs\autostart.log`, `logs\server.log`.
+
 ### Host it on the internet (use it from any phone or laptop, nothing to run)
 `deploy/install-server.sh` turns a fresh **Ubuntu 22.04/24.04** cloud server into AlgoTrade at an `https://` address. It sets up:
 - Node.js 22 and Caddy, which provides HTTPS automatically.

@@ -18,6 +18,17 @@ if not exist ".env" (
   echo  Created .env with default settings ^(built-in database, paper trading^).
 )
 
+rem With the anywhere link set up, AlgoTrade already runs in the background: just open it.
+if not exist "%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\AlgoTrade.vbs" goto normalstart
+if exist data\autostart.off goto normalstart
+echo  AlgoTrade already runs in the background (set up by setup-anywhere-link.cmd). Opening it...
+set "LINK=http://localhost:3001"
+if exist MY-ALGOTRADE-LINK.txt set /p LINK=<MY-ALGOTRADE-LINK.txt
+start "" "%LINK%"
+timeout /t 3 >nul
+exit /b 0
+
+:normalstart
 echo [1/5] Stopping any old AlgoTrade web server on port 3001...
 for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":3001" ^| findstr "LISTENING"') do taskkill /F /PID %%p >nul 2>&1
 
