@@ -1,0 +1,6 @@
+#!/bin/bash
+# Paste ALL of this into the "cloud-init script" / "user data" / "launch script" box when you create
+# the server. First change the setup code below to your own secret phrase (at least 12 characters,
+# no spaces or quotes). You will type it once in the browser to create your account.
+export SETUP_CODE='change-this-to-your-own-secret-phrase'
+curl -fsSL https://raw.githubusercontent.com/abhiigowda1117-web/TradingAlgo/feature/web-platform-foundation/deploy/install-server.sh | bash > /var/log/algotrade-install.log 2>&1

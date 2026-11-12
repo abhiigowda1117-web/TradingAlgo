@@ -43,6 +43,8 @@ export interface AppDeps {
   staticDir?: string;
   apiLimit?: { max: number; windowMs: number };
   loginLimit?: { max: number; windowMs: number };
+  /** Hosting server: a secret (SETUP_CODE) that lets the first account be created from any browser. */
+  setupCode?: string;
 }
 
 export const COOKIE = 'algotrade_sid';
@@ -80,6 +82,8 @@ const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 /** First-run account creation is only offered to the person at the computer running the site. */
 const atThisComputer = (req: IncomingMessage) =>
   LOOPBACK.has(req.socket.remoteAddress ?? '') && ['localhost', '127.0.0.1', '[::1]'].includes(hostname(String(req.headers.host ?? '')));
+/** Constant-time comparison of the setup code. */
+const codeMatches = (given: unknown, expected: string | undefined) => Boolean(expected) && typeof given === 'string' && safeEqual(given.trim(), expected!);
 const CSP = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'";
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -177,9 +181,16 @@ export function createApp(d: AppDeps): Server {
   async function firstAccount(req: IncomingMessage, res: ServerResponse) {
     const ip = clientIp(req);
     if (loginLimiter.limited(ip)) throw new HttpError(429, 'Too many attempts. Try again in 15 minutes.');
-    if (!atThisComputer(req)) throw new HttpError(403, 'Create the first account on the computer that runs AlgoTrade, at http://localhost:3001.');
     if ((await d.users.count()) > 0) throw new HttpError(409, 'An account already exists. Sign in instead.');
     const body = await readJson(req);
+    if (!atThisComputer(req)) {
+      if (!d.setupCode) throw new HttpError(403, 'Create the first account on the computer that runs AlgoTrade, at http://localhost:3001.');
+      if (!codeMatches(body.setupCode, d.setupCode)) {
+        loginLimiter.hit(ip);
+        await d.logs.write('warn', 'auth', 'Wrong setup code', { ip }).catch(() => undefined);
+        throw new HttpError(403, 'Wrong setup code. Use the SETUP_CODE you chose when installing the server.');
+      }
+    }
     const username = typeof body.username === 'string' ? body.username.trim().toLowerCase() : '';
     const password = typeof body.password === 'string' ? body.password : '';
     if (!/^[a-z0-9_.-]{3,32}$/.test(username)) throw new HttpError(400, 'Username: 3 to 32 characters, lowercase letters, digits, _ . -');
@@ -254,7 +265,8 @@ export function createApp(d: AppDeps): Server {
       if (path === '/api/auth/login' && req.method === 'POST') return await login(req, res);
       if (path === '/api/setup' && req.method === 'GET') {
         const needsAccount = (await d.users.count()) === 0;
-        return send(res, 200, { needsAccount, canCreateHere: needsAccount && atThisComputer(req) });
+        const here = atThisComputer(req);
+        return send(res, 200, { needsAccount, canCreateHere: needsAccount && (here || Boolean(d.setupCode)), ...(needsAccount && !here && d.setupCode ? { needsSetupCode: true } : {}) });
       }
       if (path === '/api/setup/account' && req.method === 'POST') return await firstAccount(req, res);
 

@@ -15,6 +15,8 @@ export interface ServerConfig {
   sessionTtlMs: number;
   staticDir: string;
   production: boolean;
+  /** Hosting server only: secret for creating the first account from a browser. */
+  setupCode?: string;
 }
 
 const bool = (v: string | undefined, dflt: boolean) => (v === undefined || v === '' ? dflt : /^(1|true|yes)$/i.test(v));
@@ -35,6 +37,8 @@ export function loadServerConfig(env: NodeJS.ProcessEnv = process.env): ServerCo
   const production = env.NODE_ENV === 'production';
   const cookieSecure = bool(env.COOKIE_SECURE, production);
   if (production && !cookieSecure) errors.push('COOKIE_SECURE must be true in production (serve the site over HTTPS)');
+  const setupCode = (env.SETUP_CODE ?? '').trim();
+  if (setupCode && setupCode.length < 12) errors.push('SETUP_CODE must be at least 12 characters (or empty)');
   if (errors.length) throw new Error(`Invalid server configuration:\n  - ${errors.join('\n  - ')}`);
   return {
     databaseUrl,
@@ -46,5 +50,6 @@ export function loadServerConfig(env: NodeJS.ProcessEnv = process.env): ServerCo
     sessionTtlMs: ttlHours * 3_600_000,
     staticDir: resolve(ROOT, env.STATIC_DIR ?? 'web/dist'),
     production,
+    ...(setupCode ? { setupCode } : {}),
   };
 }

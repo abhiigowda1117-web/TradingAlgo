@@ -35,12 +35,12 @@ function freshDb() {
   return { dir, database: openDatabase({ sqlitePath: join(dir, 'data', 'algotrade.db') }) };
 }
 
-async function startApp(database: ReturnType<typeof openDatabase>, dir: string) {
+async function startApp(database: ReturnType<typeof openDatabase>, dir: string, setupCode?: string) {
   const users = new UserRepo(database.db);
   const files = { state: join(dir, 's'), paperAccount: join(dir, 'p'), trades: join(dir, 't'), engineLog: join(dir, 'l'), heartbeat: join(dir, 'h'), killSwitch: join(dir, 'STOP'), watchlist: join(dir, 'w') };
   const app = createApp({
     db: database.db, users, sessions: new SessionRepo(database.db, 3_600_000), logs: new SystemLogRepo(database.db), allowedOrigins: ['http://localhost:5173'], cookieSecure: false, trustProxy: false,
-    sessionTtlMs: 3_600_000, tradingMode: 'paper', version: 't',
+    sessionTtlMs: 3_600_000, tradingMode: 'paper', version: 't', setupCode,
     routes: apiRoutes({ files, backtestResult: join(dir, 'b'), tradingConfig: tradingCfg, env: {}, quotes: async () => [], researchRepo: new ResearchRepo(database.db), research: async (q) => ({ symbol: q.toUpperCase(), generatedAt: new Date().toISOString(), overview: { name: `${q} Ltd` } }) as never }),
   });
   await new Promise<void>((r) => app.listen(0, '127.0.0.1', r));
@@ -125,6 +125,34 @@ describe('first-run account in the browser', () => {
     const second = await fetch(`${local}/api/setup/account`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'other', password: PASSWORD }) });
     expect(second.status).toBe(409);
     expect(await s.users.count()).toBe(1);
+  });
+});
+
+describe('first account on a hosting server (SETUP_CODE)', () => {
+  const CODE = 'blue-tiger-river-42';
+  it('needs the right code from another address, works once, and never again', async () => {
+    const { dir, database } = freshDb();
+    await database.migrate();
+    const s = await startApp(database, dir, CODE);
+    const host = 'algotrade.example.in';
+    expect((await withHost(s.port, host, 'GET', '/api/setup')).json).toEqual({ needsAccount: true, canCreateHere: true, needsSetupCode: true });
+    expect((await withHost(s.port, host, 'POST', '/api/setup/account', { username: 'evil', password: PASSWORD })).status).toBe(403);
+    expect((await withHost(s.port, host, 'POST', '/api/setup/account', { username: 'evil', password: PASSWORD, setupCode: 'blue-tiger-river-43' })).status).toBe(403);
+    expect(await s.users.count()).toBe(0);
+    const ok = await withHost(s.port, host, 'POST', '/api/setup/account', { username: 'abhi', password: PASSWORD, setupCode: CODE });
+    expect(ok.status).toBe(200);
+    expect(await s.users.count()).toBe(1);
+    expect((await withHost(s.port, host, 'POST', '/api/setup/account', { username: 'second', password: PASSWORD, setupCode: CODE })).status).toBe(409);
+    expect((await withHost(s.port, host, 'GET', '/api/setup')).json).toEqual({ needsAccount: false, canCreateHere: false });
+    const logs = (await database.db.query(`SELECT message FROM system_logs`)).rows.map((r) => (r as { message: string }).message);
+    expect(logs).toContain('Wrong setup code');
+  });
+
+  it('the setup code must be long enough', async () => {
+    const { loadServerConfig } = await import('../src/server/config');
+    expect(() => loadServerConfig({ SETUP_CODE: 'short' })).toThrow(/at least 12/);
+    expect(loadServerConfig({ SETUP_CODE: CODE }).setupCode).toBe(CODE);
+    expect(loadServerConfig({}).setupCode).toBeUndefined();
   });
 });
 

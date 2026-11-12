@@ -132,6 +132,30 @@ The website never starts the engine in live mode and never sends orders itself. 
 
 For frontend development with live reload, use two windows: `npm run server` in one and `npm run web:dev` in the other, then open http://localhost:5173.
 
+### Host it on the internet (use it from any phone or laptop, nothing to run)
+`deploy/install-server.sh` turns a fresh **Ubuntu 22.04/24.04** cloud server into AlgoTrade at an `https://` address. It sets up:
+- Node.js 22 and Caddy, which provides HTTPS automatically.
+- A service that restarts by itself.
+- A firewall that allows only SSH, HTTP and HTTPS.
+- A **nightly update from GitHub** (03:30 IST) and a nightly backup of the data folder (last 14 kept in `/var/backups/algotrade`).
+
+It always installs in **paper trading** mode.
+
+1. Rent an Ubuntu server, for example:
+   - **Oracle Cloud Always Free** (₹0; needs a card for verification). Choose the Mumbai or Hyderabad region.
+   - **AWS Lightsail** in Mumbai (about $5 a month).
+2. While creating it, paste [`deploy/cloud-init.txt`](deploy/cloud-init.txt) into the **cloud-init / launch script / user data** box. Change `SETUP_CODE` to your own secret phrase first.
+3. Open ports **80 and 443** in the provider's firewall:
+   - Oracle: VCN → Security List → Ingress rules.
+   - Lightsail: Networking → add HTTPS.
+4. After about 10 minutes, open `https://<server-ip-with-dashes>.sslip.io` (e.g. `https://129-154-1-2.sslip.io`) and create your account with the setup code. The setup code stops working once an account exists.
+
+Use a fixed ("reserved" or "static") public IP, because the address is built from it. If you own a domain, install with `DOMAIN=algotrade.example.in` instead. The install log is in `/var/log/algotrade-install.log`.
+
+Limits on a cloud server:
+- Yahoo Finance and NSE sometimes refuse requests from cloud data centres, so the study or research can fail there more often than at home.
+- The site is open to the internet, so use a long, unique password.
+
 ### Live prices from Zerodha Kite (optional)
 
 By default the website uses Yahoo Finance: free, but about 15 minutes delayed. To show exchange prices

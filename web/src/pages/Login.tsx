@@ -6,10 +6,13 @@ import { useAuth } from '../lib/auth';
 interface SetupState {
   needsAccount: boolean;
   canCreateHere: boolean;
+  /** Hosting server: the first account needs the SETUP_CODE chosen at install time. */
+  needsSetupCode?: boolean;
 }
 
 /** First start: create the owner account in the browser (only on the computer that runs AlgoTrade). */
-function CreateAccount({ canCreateHere }: { canCreateHere: boolean }) {
+function CreateAccount({ canCreateHere, needsSetupCode }: { canCreateHere: boolean; needsSetupCode?: boolean }) {
+  const [setupCode, setSetupCode] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [again, setAgain] = useState('');
@@ -32,7 +35,7 @@ function CreateAccount({ canCreateHere }: { canCreateHere: boolean }) {
     setBusy(true);
     setError(null);
     try {
-      await api('/api/setup/account', { method: 'POST', body: { username, password } });
+      await api('/api/setup/account', { method: 'POST', body: needsSetupCode ? { username, password, setupCode } : { username, password } });
       window.location.assign('/'); // signed in by the server; reload into the dashboard
     } catch (err) {
       setError((err as Error).message);
@@ -43,8 +46,14 @@ function CreateAccount({ canCreateHere }: { canCreateHere: boolean }) {
     <form onSubmit={submit} className="card space-y-4 p-6">
       <div>
         <h1 className="text-lg font-semibold">Create your account</h1>
-        <p className="text-sm text-slate-400">First start on this computer. This account has full control; you can add view-only accounts for others later.</p>
+        <p className="text-sm text-slate-400">{needsSetupCode ? 'First start of this server.' : 'First start on this computer.'} This account has full control; you can add view-only accounts for others later.</p>
       </div>
+      {needsSetupCode && (
+        <label className="block text-sm">
+          <span className="mb-1 block text-slate-400">Setup code (the SETUP_CODE you chose when installing the server)</span>
+          <input className="input" type="password" autoComplete="off" value={setupCode} onChange={(e) => setSetupCode(e.target.value)} required minLength={12} maxLength={200} />
+        </label>
+      )}
       {error && <p className="rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down" role="alert">{error}</p>}
       <label className="block text-sm">
         <span className="mb-1 block text-slate-400">Username (3 to 32 characters: letters, digits, _ . -)</span>
@@ -97,7 +106,7 @@ export function Login() {
           <img src="/favicon.svg" alt="" className="h-9 w-9" />
           <span className="text-2xl font-semibold text-slate-100">AlgoTrade</span>
         </div>
-        {setup?.needsAccount ? <CreateAccount canCreateHere={setup.canCreateHere} /> : (
+        {setup?.needsAccount ? <CreateAccount canCreateHere={setup.canCreateHere} needsSetupCode={setup.needsSetupCode} /> : (
         <form onSubmit={submit} className="card space-y-4 p-6">
           <div>
             <h1 className="text-lg font-semibold">Sign in</h1>

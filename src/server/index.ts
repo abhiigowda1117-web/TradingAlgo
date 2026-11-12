@@ -113,6 +113,7 @@ const app = createApp({
   tradingMode,
   version,
   staticDir: cfg.staticDir,
+  setupCode: cfg.setupCode,
   routes: apiRoutes(routeDeps),
   actions: apiActions(routeDeps),
 });
