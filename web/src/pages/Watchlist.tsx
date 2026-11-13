@@ -96,6 +96,11 @@ export function Watchlist() {
         <StylePicker />
       </Card>
       <Card title="Refresh the watchlist" className="mb-4">
+        {wl.data?.autoStudy ? (
+          <p className="mb-3 rounded-lg border border-accent/30 bg-accent/10 px-3 py-2 text-sm text-slate-200">
+            🤖 <b>Automatic:</b> AlgoTrade analyses the companies and refreshes this list by itself every trading day from {wl.data.autoStudy.at} IST, in time for the engine's 15:10 check. <span className="text-slate-400">{wl.data.autoStudy.note}{wl.data.autoStudy.lastStartedAt ? ` Last automatic run: ${istTime(wl.data.autoStudy.lastStartedAt)}.` : ''}</span>
+          </p>
+        ) : null}
         <JobRunner job="study" onDone={wl.reload} />
       </Card>
       {wl.error && <ErrorBox message={wl.error} />}

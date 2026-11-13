@@ -14,6 +14,7 @@ import { isStrategyName } from '../trading/strategyIds';
 import { readActiveProfile, writeActiveProfile } from '../study/activeProfile';
 import { isProfileId, PROFILES_INFO } from '../study/profiles';
 import { existsSync, readFileSync } from 'node:fs';
+import type { AutoStudyStatus } from './services/autoStudy';
 import { ControlError, ControlService } from './services/control';
 import { HttpError } from './app';
 import { dashboardTrades, engineStatus, latestBacktest, settingsView } from './services/dashboard';
@@ -54,6 +55,8 @@ export interface RouteDeps {
   strategyLabFile?: string;
   /** Stock-picking style (Buffett, Graham, ...) the company study uses to build the watchlist. */
   activeProfileFile?: string;
+  /** Status of the automatic daily analysis, when it is switched on. */
+  autoStudy?: () => AutoStudyStatus;
   now?: () => Date;
 }
 
@@ -312,7 +315,7 @@ export function apiRoutes(d: RouteDeps): ApiRoutes {
     },
     '/api/watchlist': () => {
       const wl = loadWatchlist(d.files.watchlist);
-      return wl ?? { generatedAt: null, entries: [], rejected: [] };
+      return { ...(wl ?? { generatedAt: null, entries: [], rejected: [] }), autoStudy: d.autoStudy?.() ?? null };
     },
     '/api/trades': (q) => {
       const n = Number(q.get('limit') ?? 50);

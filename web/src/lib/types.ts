@@ -85,6 +85,7 @@ export interface Watchlist {
   entries: { symbol: string; name: string; sector?: string; combinedScore: number; fundamentalScore: number; sentiment: number }[];
   rejected: { symbol: string; reason: string }[];
   profile?: { id: ProfileInfo['id']; name: string; investor: string };
+  autoStudy?: { enabled: true; at: string; lastStartedAt?: string; attemptsToday: number; note: string } | null;
 }
 
 export interface ProfileInfo {

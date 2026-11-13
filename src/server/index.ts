@@ -12,7 +12,10 @@ import { openDatabase } from './db/open';
 import { explainDbError } from './db/pool';
 import { ResearchRepo, SessionRepo, SystemLogRepo, UserRepo } from './db/repositories';
 import { apiActions, apiRoutes, cached, type RouteDeps } from './routes';
+import { AutoStudy } from './services/autoStudy';
 import { ControlService } from './services/control';
+import { loadWatchlist } from '../study/watchlist';
+import { istParts } from '../util/time';
 import { KitePrices, type KiteCredentials } from './services/kitePrices';
 import { PriceService } from './services/prices';
 
@@ -78,10 +81,30 @@ const quotes = (tickers: string[]) => {
   return c();
 };
 
+const control = new ControlService({ root: ROOT, engineLock: paths.engineLock, engineStopRequest: paths.engineStopRequest, jobsLog: paths.jobsLog }, { tradingMode });
+const tradingConfig = loadTradingConfig();
+// Daily automatic analysis (AUTO_STUDY=false turns it off): fresh watchlist every trading day from 08:45 IST.
+const autoStudy = /^(0|false|no|off)$/i.test(process.env.AUTO_STUDY ?? '')
+  ? undefined
+  : new AutoStudy({
+      now: () => new Date(),
+      watchlistDate: () => {
+        const wl = loadWatchlist(paths.watchlist);
+        return wl?.generatedAt ? istParts(new Date(wl.generatedAt)).date : null;
+      },
+      jobRunning: () => control.jobStatus()?.state === 'running',
+      run: () => control.runJob('study', 'automatic'),
+      holidays: tradingConfig.engine.holidays ?? [],
+    });
+if (autoStudy) {
+  setTimeout(() => autoStudy.tick(), 30_000).unref();
+  setInterval(() => autoStudy.tick(), 60_000).unref();
+}
+
 const routeDeps: RouteDeps = {
   files: paths,
   backtestResult: paths.backtestResult,
-  tradingConfig: loadTradingConfig(),
+  tradingConfig,
   env: process.env,
   quotes,
   researchRepo: new ResearchRepo(pool),
@@ -94,7 +117,8 @@ const routeDeps: RouteDeps = {
     return researchCompany(symbol, researchSources, { peers });
   },
   // Website controls: start/stop the PAPER engine as a separate program, run jobs, queue paper orders.
-  control: new ControlService({ root: ROOT, engineLock: paths.engineLock, engineStopRequest: paths.engineStopRequest, jobsLog: paths.jobsLog }, { tradingMode }),
+  control,
+  autoStudy: autoStudy ? () => autoStudy.status() : undefined,
   manualOrdersDir: paths.manualOrders,
   activeStrategyFile: paths.activeStrategy,
   strategyLabFile: paths.strategyLab,

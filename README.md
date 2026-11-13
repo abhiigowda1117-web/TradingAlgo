@@ -55,6 +55,9 @@ Outputs: `data/watchlist.json` (read by the trading engine) and `reports/<date>/
 
 Banks and NBFCs often have no debt/equity or current ratio on Yahoo. With `"onMissing": "pass"` they are not penalised for missing data; set it to `"fail"` to be strict.
 
+### Automatic daily analysis
+While the website runs, it refreshes the watchlist **by itself every trading day from 08:45 IST**: Monday to Friday, skipping the holidays in `config/trading.json`. It runs straight away if the computer is switched on later in the day, so the engine always has a fresh list for its 15:10 check. If the data source refuses requests, it retries an hour later, at most 3 times a day. It never overlaps another job. Set `AUTO_STUDY=false` in `.env` to turn it off.
+
 ### Stock-picking styles (famous investors' rules)
 On the **Market Watchlist** page, choose whose rules build the watchlist, then press **Refresh watchlist now**. From the command line: `npm run study -- --profile buffett`. Each style is the investor's published rules applied to the study's free Yahoo data (with earnings yield, PEG and P/E × P/B worked out from it). The investor styles are strict: a company with a missing number fails rather than passes.
 
