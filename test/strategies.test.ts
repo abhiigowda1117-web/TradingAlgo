@@ -183,3 +183,20 @@ describe('active strategy for the engine', () => {
     expect(e.state.positions.SYN!.exitReason).toBeUndefined();
   });
 });
+
+describe('daily check summary in the engine log', () => {
+  it('a day without buy signals is written to the log, with the reason for each stock', async () => {
+    const { setLogFile } = await import('../src/util/log');
+    const { readFileSync } = await import('node:fs');
+    const f = fixture();
+    const logFile = join(f.dir, 'engine.log');
+    setLogFile(logFile);
+    f.paths.activeStrategy = join(f.dir, 'active.json');
+    writeActiveStrategy(f.paths.activeStrategy, 'donchian', 'abhi'); // the fixture's candles do not break a 55-day high
+    const c = entryCandles();
+    expect(entrySignal(c, computeIndicators(c, cfgFor('donchian')), c.length - 1, cfgFor('donchian')).enter).toBe(false);
+    await f.engine().tick();
+    const text = readFileSync(logFile, 'utf8');
+    expect(text).toMatch(/Daily check done \(Donchian Breakout\): 1 of 1 watchlist stocks checked, 0 bought\. No buy signal today: SYN \(/);
+  });
+});

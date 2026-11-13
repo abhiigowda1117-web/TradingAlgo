@@ -15,7 +15,7 @@ import { atr } from './indicators';
 import { finishManualOrder, pendingManualOrders, type ManualOrder } from './manualOrders';
 import { clearStopRequest, stopRequested } from './runLock';
 import { readActiveStrategy } from './activeStrategy';
-import { computeIndicators, entrySignal, exitSignal, maxWarmupBars, strategyName, type StrategyName } from './strategy';
+import { computeIndicators, entrySignal, exitSignal, maxWarmupBars, STRATEGIES, strategyName, type StrategyName } from './strategy';
 
 /**
  * Lifecycle of one order the engine decided to send. Intents are saved BEFORE the order is sent,
@@ -907,18 +907,31 @@ export class Engine {
     if (ctx.blocked.length) return log.warn(`No new entries: ${[...new Set(ctx.blocked)].join('; ')}`);
     const wl = this.watchlist();
     if (!wl) return;
+    if (!wl.entries.length) return log.warn('The watchlist has no stocks (no company passed the study). Choose another stock-picking style on the Market Watchlist page and refresh it; no new entries.');
 
+    // Daily summary, so a day without buys is visible in the log rather than silent.
+    let checked = 0;
+    let bought = 0;
+    const noSignal: string[] = [];
+    let full = false;
     for (const entry of wl.entries) {
       if (this.killSwitch() !== 'off') return log.warn('Kill switch activated during evaluation; no further entries');
       const inFlight = Object.values(this.state.intents).filter((i) => i.kind === 'entry' && !FINAL_INTENT.has(i.status) && !this.state.positions[i.symbol]);
-      if (Object.keys(this.state.positions).length + inFlight.length >= risk.maxOpenPositions) break;
+      if (Object.keys(this.state.positions).length + inFlight.length >= risk.maxOpenPositions) {
+        full = true;
+        break;
+      }
       if (this.state.positions[entry.symbol]) continue;
       // One entry attempt per symbol per day, whatever happened to it. Restarting mid-evaluation cannot double-buy.
       if (this.intentsFor(entry.symbol, (i) => i.kind === 'entry' && (i.day === ctx.today || !FINAL_INTENT.has(i.status))).length) continue;
       try {
         const c = await this.candles(entry.symbol, ctx.today);
         const sig = entrySignal(c, computeIndicators(c, strategy), c.length - 1, strategy);
-        if (!sig.enter) continue;
+        checked++;
+        if (!sig.enter) {
+          noSignal.push(`${entry.symbol} (${sig.reason})`);
+          continue;
+        }
 
         const px = (await this.d.broker.getLtp([entry.symbol]))[entry.symbol];
         const bad = validateEntryPrice(px, c.at(-1)!.close, risk.maxPriceDeviationPct);
@@ -952,6 +965,7 @@ export class Engine {
         });
         log.info(`BUY ${entry.symbol} ${size.qty} @ ~₹${price.toFixed(2)}, stop ₹${sig.stop.toFixed(2)} (${active}: ${sig.reason}; ${size.reason}; study score ${entry.combinedScore}) [${intent.id}]`);
         await this.send(intent);
+        bought++;
         if (intent.status === 'working') await this.resolveSoon(intent, ctx);
         const p = this.state.positions[entry.symbol];
         if (p) await this.protect(p, ctx);
@@ -964,18 +978,23 @@ export class Engine {
         if (isAuthError(e)) throw e;
       }
     }
+    const label = STRATEGIES.find((x) => x.id === active)?.name ?? active;
+    log.info(
+      `Daily check done (${label}): ${checked} of ${wl.entries.length} watchlist stocks checked, ${bought} bought${full ? `; stopped at the limit of ${risk.maxOpenPositions} open positions` : ''}.` +
+        (noSignal.length ? ` No buy signal today: ${noSignal.slice(0, 10).join('; ')}${noSignal.length > 10 ? `; +${noSignal.length - 10} more` : ''}.` : ''),
+    );
   }
 
   /** The engine only buys what the latest company study approved, and refuses a stale study. */
   private watchlist(): Watchlist | undefined {
     const wl = loadWatchlist(this.d.paths.watchlist);
     if (!wl) {
-      log.warn('No watchlist found. Run `npm run study` first; no new entries.');
+      log.warn('No watchlist found. Press "Refresh watchlist now" on the Market Watchlist page; no new entries.');
       return undefined;
     }
     const age = daysBetween(new Date(wl.generatedAt), this.now());
     if (!Number.isFinite(age) || age > this.d.cfg.engine.watchlistMaxAgeDays) {
-      log.warn(`Watchlist is ${age.toFixed(1)} days old (max ${this.d.cfg.engine.watchlistMaxAgeDays}). Re-run \`npm run study\`; no new entries.`);
+      log.warn(`Watchlist is ${age.toFixed(1)} days old (max ${this.d.cfg.engine.watchlistMaxAgeDays}). Press "Refresh watchlist now" on the Market Watchlist page; no new entries.`);
       return undefined;
     }
     return wl;
