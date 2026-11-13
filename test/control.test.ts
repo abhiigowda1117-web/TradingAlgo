@@ -296,3 +296,76 @@ describe('website controls: strategy choice', () => {
     expect(s.spawned[0]!.args.slice(-4)).toEqual(['src/cli/portfolio.ts', '--compare', '--json', 'data/backtests/lab.json']);
   });
 });
+
+describe('autopilot: the engine keeps running by itself', () => {
+  function keeper(o: { mode?: 'paper' | 'live'; kill?: string } = {}) {
+    const dir = mkdtempSync(join(tmpdir(), 'keep-'));
+    let now = new Date('2026-11-16T03:30:00Z');
+    const children: FakeChild[] = [];
+    const spawn: SpawnFn = () => {
+      const c = new FakeChild();
+      children.push(c);
+      return c as never;
+    };
+    const p = { root: ROOT, engineLock: join(dir, 'engine.lock'), engineStopRequest: join(dir, 'stop'), jobsLog: join(dir, 'jobs'), engineWanted: join(dir, 'engine.wanted') };
+    const c = new ControlService(p, { tradingMode: o.mode ?? 'paper', spawn, now: () => now, killSwitch: () => o.kill ?? 'off' });
+    return { c, p, children, later: (min: number) => (now = new Date(now.getTime() + min * 60_000)) };
+  }
+
+  it('starts again after a restart or a crash, at most every 10 minutes, once the owner has started it', () => {
+    const k = keeper();
+    expect(k.c.keepEngineRunning()).toBe(false); // never started by the owner: stays off
+    k.c.startEngine('abhi');
+    expect(readFileSync(k.p.engineWanted, 'utf8')).toBe('on');
+    expect(k.c.keepEngineRunning()).toBe(false); // already running
+    k.children[0]!.finish(1); // crashed
+    expect(k.c.keepEngineRunning()).toBe(true);
+    expect(k.children).toHaveLength(2);
+    k.children[1]!.finish(1);
+    k.later(5);
+    expect(k.c.keepEngineRunning()).toBe(false); // not more than once every 10 minutes
+    k.later(6);
+    expect(k.c.keepEngineRunning()).toBe(true);
+    // A fresh website process (the computer restarted) picks it up from the saved wish.
+    const fresh = new ControlService(k.p, { tradingMode: 'paper', spawn: () => new FakeChild() as never, now: () => new Date() });
+    expect(fresh.keepEngineRunning()).toBe(true);
+  });
+
+  it('stays stopped after Stop, during "Sell everything & stop", and never in live mode', () => {
+    const k = keeper();
+    k.c.startEngine('abhi');
+    k.c.stopEngine('abhi');
+    k.children[0]!.finish(0);
+    k.later(30);
+    expect(readFileSync(k.p.engineWanted, 'utf8')).toBe('off');
+    expect(k.c.keepEngineRunning()).toBe(false);
+
+    const f = keeper({ kill: 'flatten' });
+    writeFileSync(f.p.engineWanted, 'on');
+    expect(f.c.keepEngineRunning()).toBe(false);
+
+    const live = keeper({ mode: 'live' });
+    writeFileSync(live.p.engineWanted, 'on');
+    expect(live.c.keepEngineRunning()).toBe(false);
+    expect(live.children).toHaveLength(0);
+  });
+});
+
+describe('autopilot settings (applied once)', () => {
+  it('switches to the Buffett style and "Buy right, sit tight" once, paper only; later website choices win', async () => {
+    const { applyPresets } = await import('../src/server/presets');
+    const { readActiveProfile, writeActiveProfile } = await import('../src/study/activeProfile');
+    const { readActiveStrategy } = await import('../src/trading/activeStrategy');
+    const dir = mkdtempSync(join(tmpdir(), 'preset-'));
+    const p = { presets: join(dir, 'presets.json'), activeStrategy: join(dir, 'strategy.json'), activeProfile: join(dir, 'profile.json'), engineWanted: join(dir, 'engine.wanted') };
+    expect(applyPresets(p, 'live')).toEqual([]);
+    expect(existsSync(p.activeStrategy)).toBe(false);
+    expect(applyPresets(p, 'paper')).toEqual(['autopilot-1']);
+    expect(readActiveStrategy(p.activeStrategy, 'emaTrend').name).toBe('buyHold');
+    expect(readActiveProfile(p.activeProfile).id).toBe('buffett');
+    expect(readFileSync(p.engineWanted, 'utf8')).toBe('on');
+    writeActiveProfile(p.activeProfile, 'qglp', 'abhi');
+    expect(applyPresets(p, 'paper')).toEqual([]);
+    expect(readActiveProfile(p.activeProfile).id).toBe('qglp');
+  });
+});

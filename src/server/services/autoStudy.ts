@@ -10,6 +10,9 @@ export interface AutoStudyDeps {
   now: () => Date;
   /** IST date (YYYY-MM-DD) of the current watchlist, or null if there is none. */
   watchlistDate: () => string | null;
+  /** Stock-picking style the current watchlist was built with, and the style chosen now. */
+  watchlistProfile?: () => string | null;
+  activeProfile?: () => string;
   jobRunning: () => boolean;
   /** Starts the study job. */
   run: () => void;
@@ -52,7 +55,8 @@ export class AutoStudy {
       this.note = `Today's automatic refresh starts at ${this.at} IST.`;
       return false;
     }
-    if (this.d.watchlistDate() === t.date) {
+    const styleChanged = Boolean(this.d.activeProfile && this.d.watchlistProfile && (this.d.watchlistProfile() ?? 'balanced') !== this.d.activeProfile());
+    if (this.d.watchlistDate() === t.date && !styleChanged) {
       this.note = 'The watchlist is already up to date for today.';
       return false;
     }

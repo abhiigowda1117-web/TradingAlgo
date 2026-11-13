@@ -48,6 +48,8 @@ function engineLine(c: ControlView) {
       badge: <Badge color="green">Running</Badge>,
       text: `Started ${e.startedAt ? istTime(e.startedAt) : ''} ${e.startedBy === 'terminal' ? 'from a terminal window' : `from the ${e.startedBy ?? 'website'}`}. ${c.market.open ? 'Market open: it is watching positions and checks for new buys at 15:10 IST.' : 'Market closed: it waits for the next session.'}`,
     };
+  if (c.autopilot && c.tradingMode === 'paper' && c.killSwitch !== 'flatten')
+    return { badge: <Badge color="amber">Restarting…</Badge>, text: 'Autopilot is on: the engine starts again by itself within a few minutes.' };
   return { badge: <Badge color="red">Stopped</Badge>, text: 'Press Start to run the paper engine. It manages stop-losses and looks for buys at 15:10 IST each trading day.' };
 }
 
@@ -101,6 +103,11 @@ export function EngineControls({ compact = false }: { compact?: boolean }) {
         {line.badge}
         <span className="text-sm text-slate-400">{line.text}</span>
       </div>
+      {!compact && c.autopilot && !live && (
+        <p className="rounded-lg border border-accent/30 bg-accent/10 px-3 py-2 text-sm text-slate-200">
+          🤖 <b>Autopilot on:</b> every trading day AlgoTrade analyses the companies from 08:45 IST, buys and sells by itself at 15:10 IST (up to 5 companies at a time), and protects every position with a stop-loss all day. If the computer restarts, the engine starts again by itself. Press <b>Stop engine</b> to switch autopilot off.
+        </p>
+      )}
       {live && <ErrorBox message='TRADING_MODE in .env is "live". The website only runs the engine in paper mode; its buttons are disabled.' />}
       {c.canControl ? buttons : <ViewOnly />}
       {c.engine?.lastExit && !running && c.engine.lastExit.code !== 0 && (

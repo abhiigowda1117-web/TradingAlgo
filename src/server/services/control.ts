@@ -1,7 +1,7 @@
 import { spawn as nodeSpawn, type ChildProcess, type SpawnOptions } from 'node:child_process';
-import { createWriteStream, mkdirSync } from 'node:fs';
+import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { requestStop, runningEngine, stopRequested, type LockInfo } from '../../trading/runLock';
 
 /**
@@ -19,6 +19,8 @@ export interface ControlPaths {
   engineLock: string;
   engineStopRequest: string;
   jobsLog: string;
+  /** "on" when the owner wants the paper engine running (kept running across restarts), "off" after Stop. */
+  engineWanted?: string;
 }
 
 export interface JobStatus {
@@ -90,7 +92,7 @@ export class ControlService {
 
   constructor(
     private p: ControlPaths,
-    private o: { tradingMode: 'paper' | 'live'; spawn?: SpawnFn; now?: () => Date; stopTimeoutMs?: number },
+    private o: { tradingMode: 'paper' | 'live'; spawn?: SpawnFn; now?: () => Date; stopTimeoutMs?: number; killSwitch?: () => string },
   ) {
     this.tsxCli = createRequire(join(p.root, 'package.json')).resolve('tsx/cli');
   }
@@ -135,13 +137,42 @@ export class ControlService {
       this.lastExit = { at: this.now().toISOString(), code, lines: this.engineLines.slice(-15) };
     });
     child.once('error', (e) => this.engineLines.push(`Could not start: ${e.message}`));
+    this.setWanted('on');
     return this.engineStatus();
+  }
+
+  private setWanted(v: 'on' | 'off') {
+    if (!this.p.engineWanted) return;
+    mkdirSync(dirname(this.p.engineWanted), { recursive: true });
+    writeFileSync(this.p.engineWanted, v);
+  }
+
+  engineWanted(): boolean {
+    return Boolean(this.p.engineWanted && existsSync(this.p.engineWanted) && readFileSync(this.p.engineWanted, 'utf8').trim() === 'on');
+  }
+
+  /**
+   * Keeps the paper engine running without anyone pressing Start: after the computer restarts or if the
+   * engine stops unexpectedly, it is started again (at most once every 10 minutes). Not after the owner
+   * pressed Stop, not while "Sell everything & stop" is on, and never in live mode.
+   */
+  private lastAutoStart = 0;
+  keepEngineRunning(): boolean {
+    if (this.o.tradingMode !== 'paper' || !this.engineWanted()) return false;
+    if (runningEngine(this.p.engineLock) || (this.engineChild && this.engineChild.exitCode === null)) return false;
+    if (stopRequested(this.p.engineStopRequest) || this.o.killSwitch?.() === 'flatten') return false;
+    const now = this.now().getTime();
+    if (this.lastAutoStart && now - this.lastAutoStart < 10 * 60_000) return false;
+    this.lastAutoStart = now;
+    this.startEngine('automatic restart');
+    return true;
   }
 
   /** Asks the engine to stop after its current check (works for an engine started from a terminal too). */
   stopEngine(username: string): EngineProcessStatus {
     if (!runningEngine(this.p.engineLock) && !this.engineChild) throw new ControlError(409, 'The engine is not running.');
     requestStop(this.p.engineStopRequest, username);
+    this.setWanted('off');
     // Safety net for an engine we started: if it has not exited after the timeout, end the process.
     const child = this.engineChild;
     if (child) {

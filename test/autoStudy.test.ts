@@ -86,3 +86,22 @@ describe('automatic daily analysis', () => {
     expect(s.runs).toHaveLength(0);
   });
 });
+
+describe('style change', () => {
+  it('rebuilds today\'s watchlist when the stock-picking style changed', () => {
+    let style = 'balanced';
+    const runs: number[] = [];
+    const a = new AutoStudy({
+      now: () => new Date('2026-11-16T10:00:00+05:30'),
+      watchlistDate: () => '2026-11-16',
+      watchlistProfile: () => null, // built before styles existed = balanced
+      activeProfile: () => style,
+      jobRunning: () => false,
+      run: () => runs.push(1),
+      holidays: [],
+    });
+    expect(a.tick()).toBe(false);
+    style = 'buffett';
+    expect(a.tick()).toBe(true);
+  });
+});

@@ -12,6 +12,9 @@ import { openDatabase } from './db/open';
 import { explainDbError } from './db/pool';
 import { ResearchRepo, SessionRepo, SystemLogRepo, UserRepo } from './db/repositories';
 import { apiActions, apiRoutes, cached, type RouteDeps } from './routes';
+import { applyPresets } from './presets';
+import { readActiveProfile } from '../study/activeProfile';
+import { readKillSwitch } from './services/engineView';
 import { AutoStudy } from './services/autoStudy';
 import { ControlService } from './services/control';
 import { loadWatchlist } from '../study/watchlist';
@@ -81,7 +84,15 @@ const quotes = (tickers: string[]) => {
   return c();
 };
 
-const control = new ControlService({ root: ROOT, engineLock: paths.engineLock, engineStopRequest: paths.engineStopRequest, jobsLog: paths.jobsLog }, { tradingMode });
+const presets = applyPresets(paths, tradingMode);
+if (presets.length) console.log(`Applied settings: ${presets.join(', ')} (Buffett style, "Buy right, sit tight", engine kept running)`);
+const control = new ControlService(
+  { root: ROOT, engineLock: paths.engineLock, engineStopRequest: paths.engineStopRequest, jobsLog: paths.jobsLog, engineWanted: paths.engineWanted },
+  { tradingMode, killSwitch: () => readKillSwitch(paths.killSwitch) },
+);
+// Keep the paper engine running by itself (after a restart, or if it stops unexpectedly).
+setTimeout(() => control.keepEngineRunning(), 45_000).unref();
+setInterval(() => control.keepEngineRunning(), 60_000).unref();
 const tradingConfig = loadTradingConfig();
 // Daily automatic analysis (AUTO_STUDY=false turns it off): fresh watchlist every trading day from 08:45 IST.
 const autoStudy = /^(0|false|no|off)$/i.test(process.env.AUTO_STUDY ?? '')
@@ -92,6 +103,8 @@ const autoStudy = /^(0|false|no|off)$/i.test(process.env.AUTO_STUDY ?? '')
         const wl = loadWatchlist(paths.watchlist);
         return wl?.generatedAt ? istParts(new Date(wl.generatedAt)).date : null;
       },
+      watchlistProfile: () => loadWatchlist(paths.watchlist)?.profile?.id ?? null,
+      activeProfile: () => readActiveProfile(paths.activeProfile).id,
       jobRunning: () => control.jobStatus()?.state === 'running',
       run: () => control.runJob('study', 'automatic'),
       holidays: tradingConfig.engine.holidays ?? [],

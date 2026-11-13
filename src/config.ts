@@ -23,6 +23,8 @@ export const paths = {
   manualOrders: resolve(ROOT, 'data/manual-orders'),
   activeStrategy: resolve(ROOT, 'data/active-strategy.json'),
   activeProfile: resolve(ROOT, 'data/active-profile.json'),
+  engineWanted: resolve(ROOT, 'data/engine.wanted'),
+  presets: resolve(ROOT, 'data/presets-applied.json'),
   strategyLab: resolve(ROOT, 'data/backtests/lab.json'),
   engineLock: resolve(ROOT, 'data/engine.lock'),
   engineStopRequest: resolve(ROOT, 'data/engine.stop-request'),

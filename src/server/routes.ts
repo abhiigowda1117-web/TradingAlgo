@@ -68,6 +68,7 @@ export function controlView(d: RouteDeps, canControl: boolean) {
     tradingMode: d.env.TRADING_MODE === 'live' ? 'live' : 'paper',
     available: Boolean(d.control),
     engine: d.control?.engineStatus() ?? null,
+    autopilot: d.control?.engineWanted() ?? false,
     killSwitch: readKillSwitch(d.files.killSwitch),
     market: sessionStatus(now, d.tradingConfig.engine.holidays),
     job: d.control?.jobStatus() ?? null,
