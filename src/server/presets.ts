@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { writeActiveProfile } from '../study/activeProfile';
 import { writeActiveStrategy } from '../trading/activeStrategy';
+import { requestStop, runningEngine } from '../trading/runLock';
 
 /**
  * One-time settings changes the owner asked for, applied once when the website starts (paper only).
@@ -9,7 +10,7 @@ import { writeActiveStrategy } from '../trading/activeStrategy';
  * Warren Buffett's stock-picking style, the "Buy right, sit tight" strategy, and the engine kept running.
  * Anything chosen on the website afterwards wins; a preset is never applied twice.
  */
-export function applyPresets(p: { presets: string; activeStrategy: string; activeProfile: string; engineWanted: string }, tradingMode: 'paper' | 'live', now = new Date()): string[] {
+export function applyPresets(p: { presets: string; activeStrategy: string; activeProfile: string; engineWanted: string; engineLock?: string; engineStopRequest?: string }, tradingMode: 'paper' | 'live', now = new Date()): string[] {
   if (tradingMode !== 'paper') return [];
   let done: string[] = [];
   try {
@@ -24,6 +25,14 @@ export function applyPresets(p: { presets: string; activeStrategy: string; activ
     mkdirSync(dirname(p.engineWanted), { recursive: true });
     writeFileSync(p.engineWanted, 'on');
     applied.push('autopilot-1');
+  }
+  // "invest-80": invest about 80% of the money. The limits themselves are in config/trading.json
+  // (up to 12 companies, 1.2% risk each, 80% total cap); a wider watchlist (Balanced style) gives enough
+  // companies to fill it, and a running engine is restarted once so it uses the new limits.
+  if (!done.includes('invest-80')) {
+    writeActiveProfile(p.activeProfile, 'balanced', 'autopilot', now);
+    if (p.engineLock && p.engineStopRequest && runningEngine(p.engineLock)) requestStop(p.engineStopRequest, 'autopilot (new limits)');
+    applied.push('invest-80');
   }
   if (applied.length) {
     mkdirSync(dirname(p.presets), { recursive: true });

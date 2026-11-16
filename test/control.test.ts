@@ -352,7 +352,7 @@ describe('autopilot: the engine keeps running by itself', () => {
 });
 
 describe('autopilot settings (applied once)', () => {
-  it('switches to the Buffett style and "Buy right, sit tight" once, paper only; later website choices win', async () => {
+  it('switches to "Buy right, sit tight" with a wide watchlist once, paper only; later website choices win', async () => {
     const { applyPresets } = await import('../src/server/presets');
     const { readActiveProfile, writeActiveProfile } = await import('../src/study/activeProfile');
     const { readActiveStrategy } = await import('../src/trading/activeStrategy');
@@ -360,12 +360,38 @@ describe('autopilot settings (applied once)', () => {
     const p = { presets: join(dir, 'presets.json'), activeStrategy: join(dir, 'strategy.json'), activeProfile: join(dir, 'profile.json'), engineWanted: join(dir, 'engine.wanted') };
     expect(applyPresets(p, 'live')).toEqual([]);
     expect(existsSync(p.activeStrategy)).toBe(false);
-    expect(applyPresets(p, 'paper')).toEqual(['autopilot-1']);
+    expect(applyPresets(p, 'paper')).toEqual(['autopilot-1', 'invest-80']);
     expect(readActiveStrategy(p.activeStrategy, 'emaTrend').name).toBe('buyHold');
-    expect(readActiveProfile(p.activeProfile).id).toBe('buffett');
+    expect(readActiveProfile(p.activeProfile).id).toBe('balanced'); // invest-80: a wider watchlist
     expect(readFileSync(p.engineWanted, 'utf8')).toBe('on');
     writeActiveProfile(p.activeProfile, 'qglp', 'abhi');
     expect(applyPresets(p, 'paper')).toEqual([]);
     expect(readActiveProfile(p.activeProfile).id).toBe('qglp');
+  });
+});
+
+describe('invest-80 settings', () => {
+  it('restarts a running engine once so it uses the new limits (autopilot starts it again)', async () => {
+    const { applyPresets } = await import('../src/server/presets');
+    const { acquireLock, stopRequested } = await import('../src/trading/runLock');
+    const dir = mkdtempSync(join(tmpdir(), 'preset80-'));
+    const p = { presets: join(dir, 'presets.json'), activeStrategy: join(dir, 's.json'), activeProfile: join(dir, 'p.json'), engineWanted: join(dir, 'engine.wanted'), engineLock: join(dir, 'engine.lock'), engineStopRequest: join(dir, 'stop') };
+    writeFileSync(p.presets, JSON.stringify({ applied: ['autopilot-1'] }));
+    writeFileSync(p.engineWanted, 'on');
+    acquireLock(p.engineLock, { mode: 'paper', startedBy: 'website (abhi)' } as never);
+    expect(applyPresets(p, 'paper')).toEqual(['invest-80']);
+    expect(stopRequested(p.engineStopRequest)).toBe(true);
+    expect(readFileSync(p.engineWanted, 'utf8')).toBe('on'); // still wanted: autopilot restarts it
+    expect(applyPresets(p, 'paper')).toEqual([]);
+  });
+
+  it('the shipped limits can invest about 80% and no more', async () => {
+    const { loadTradingConfig } = await import('../src/config');
+    const r = loadTradingConfig().risk;
+    expect(r.maxTotalExposurePct).toBe(0.8);
+    expect(r.riskPerTrade).toBeLessThanOrEqual(0.012);
+    expect(r.maxDailyLossPct).toBe(0.02);
+    // "Buy right, sit tight" stops sit about 15% below the price: 1.2% risk gives about 8% per company.
+    expect((r.riskPerTrade / 0.15) * r.maxOpenPositions).toBeGreaterThanOrEqual(0.8);
   });
 });

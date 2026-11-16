@@ -274,10 +274,10 @@ The dashboard shows the same content with charts.
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `riskPerTrade` | 1% | Max loss per trade if the stop is hit, as a share of equity |
+| `riskPerTrade` | 1.2% | Max loss per trade if the stop is hit, as a share of equity |
 | `maxPositionPct` | 20% | Max size of one position |
 | `maxTotalExposurePct` | 80% | Max combined value of all positions |
-| `maxOpenPositions` | 10 | Counts orders still in flight |
+| `maxOpenPositions` | 12 | Counts orders still in flight. With 1.2% risk and the 80% total cap, the engine invests up to about 80% of the money |
 | `maxDailyLossPct` | 2% | If equity falls this much in a day, no new entries until tomorrow |
 | `maxOrderValue` | ₹2,00,000 | Hard cap per order |
 | `maxPriceDeviationPct` | 3% | Skip an entry if the live price is this far from the latest candle close |

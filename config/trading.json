@@ -11,10 +11,10 @@
     "trailAtr": 3
   },
   "risk": {
-    "riskPerTrade": 0.01,
+    "riskPerTrade": 0.012,
     "maxPositionPct": 0.2,
     "maxTotalExposurePct": 0.8,
-    "maxOpenPositions": 10,
+    "maxOpenPositions": 12,
     "maxDailyLossPct": 0.02,
     "maxOrderValue": 200000,
     "maxPriceDeviationPct": 0.03

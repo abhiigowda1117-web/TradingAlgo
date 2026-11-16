@@ -85,7 +85,7 @@ const quotes = (tickers: string[]) => {
 };
 
 const presets = applyPresets(paths, tradingMode);
-if (presets.length) console.log(`Applied settings: ${presets.join(', ')} (Buffett style, "Buy right, sit tight", engine kept running)`);
+if (presets.length) console.log(`Applied settings: ${presets.join(', ')}`);
 const control = new ControlService(
   { root: ROOT, engineLock: paths.engineLock, engineStopRequest: paths.engineStopRequest, jobsLog: paths.jobsLog, engineWanted: paths.engineWanted },
   { tradingMode, killSwitch: () => readKillSwitch(paths.killSwitch) },
