@@ -30,5 +30,5 @@
   },
   "sentiment": { "lookbackDays": 14, "maxArticles": 25, "halfLifeDays": 5 },
   "combine": { "fundamentalWeight": 0.75, "sentimentWeight": 0.25 },
-  "watchlist": { "topN": 10, "minScore": 55, "minSentiment": -0.25 }
+  "watchlist": { "topN": 20, "minScore": 55, "minSentiment": -0.25 }
 }

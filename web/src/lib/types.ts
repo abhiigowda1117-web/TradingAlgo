@@ -186,6 +186,7 @@ export interface ControlView {
   killSwitch: 'off' | 'halt' | 'flatten';
   /** The engine is kept running by itself (restarted after a computer restart). */
   autopilot?: boolean;
+  maxOpenPositions?: number;
   market: { open: boolean; label: string; istTime: string; holiday: boolean };
   job: JobView | null;
   orders: ManualOrderView[];

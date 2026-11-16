@@ -14,7 +14,7 @@
     "riskPerTrade": 0.01,
     "maxPositionPct": 0.2,
     "maxTotalExposurePct": 0.8,
-    "maxOpenPositions": 5,
+    "maxOpenPositions": 10,
     "maxDailyLossPct": 0.02,
     "maxOrderValue": 200000,
     "maxPriceDeviationPct": 0.03

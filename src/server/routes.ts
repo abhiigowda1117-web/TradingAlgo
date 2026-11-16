@@ -69,6 +69,7 @@ export function controlView(d: RouteDeps, canControl: boolean) {
     available: Boolean(d.control),
     engine: d.control?.engineStatus() ?? null,
     autopilot: d.control?.engineWanted() ?? false,
+    maxOpenPositions: d.tradingConfig.risk.maxOpenPositions,
     killSwitch: readKillSwitch(d.files.killSwitch),
     market: sessionStatus(now, d.tradingConfig.engine.holidays),
     job: d.control?.jobStatus() ?? null,
