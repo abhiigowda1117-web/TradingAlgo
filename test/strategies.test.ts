@@ -200,3 +200,21 @@ describe('daily check summary in the engine log', () => {
     expect(text).toMatch(/Daily check done \(Donchian Breakout\): 1 of 1 watchlist stocks checked, 0 bought\. No buy signal today: SYN \(/);
   });
 });
+
+describe('several companies in one daily check', () => {
+  it('buys every watchlist company that gives a buy signal at the same check, each with its own stop-loss', async () => {
+    const f = fixture({ symbols: ['AAA', 'BBB', 'CCC'] });
+    const e = f.engine();
+    await e.tick();
+    expect(Object.keys(e.state.positions).sort()).toEqual(['AAA', 'BBB', 'CCC']);
+    for (const s of ['AAA', 'BBB', 'CCC']) expect(await f.workingStops(s)).toHaveLength(1);
+  });
+
+  it('never more than the open-positions limit (5)', async () => {
+    const symbols = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7'];
+    const f = fixture({ symbols, cfg: { ...tradingCfg, risk: { ...tradingCfg.risk, maxPositionPct: 0.1, maxTotalExposurePct: 0.9 } } });
+    const e = f.engine();
+    await e.tick();
+    expect(Object.keys(e.state.positions).length).toBe(tradingCfg.risk.maxOpenPositions);
+  });
+});

@@ -10,6 +10,15 @@ import type { DashboardSummary, MarketMovers, MarketOverview, Watchlist } from '
 import { useApi } from '../lib/useApi';
 import { EngineBadge } from './Engine';
 
+
+/** Stop-loss orders protecting holdings are normal and stay open; other orders are still being filled. */
+function openOrdersText(orders: { kind: string }[]) {
+  const stops = orders.filter((o) => o.kind === 'stop').length;
+  const other = orders.length - stops;
+  const parts = [stops ? `protected by ${stops} stop-loss order${stops > 1 ? 's' : ''}` : '', other ? `${other} order${other > 1 ? 's' : ''} being filled` : ''].filter(Boolean);
+  return parts.length ? parts.join(' · ') : 'no orders waiting';
+}
+
 export function Dashboard() {
   const summary = useApi<DashboardSummary>('/api/dashboard/summary', 60_000);
   const market = useApi<MarketOverview>('/api/market/overview', 120_000);
@@ -34,7 +43,7 @@ export function Dashboard() {
         />
         <Stat label="Cash" value={e?.cash == null ? '—' : inrShort(e.cash)} sub={e?.investedPct != null ? `${pct(e.investedPct)} invested` : undefined} />
         <Stat label="Today's P&L" value={e?.dayPnl == null ? '—' : inr(e.dayPnl)} valueClass={tone(e?.dayPnl)} sub="vs. equity at the day's start" />
-        <Stat label="Open positions" value={e ? String(e.positions.length) : '—'} sub={e ? `${e.openOrders.length} orders in progress` : undefined} />
+        <Stat label="Open positions" value={e ? String(e.positions.length) : '—'} sub={e ? openOrdersText(e.openOrders) : undefined} />
       </div>
 
       <MoversBoard data={movers.data} error={movers.error} />
