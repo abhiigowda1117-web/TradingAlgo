@@ -1,17 +1,17 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { dirname } from 'node:path';
-import type { TradingConfig } from '../config';
+import { protectionSettings, type TradingConfig } from '../config';
 import type { MarketData } from '../data/types';
 import { loadWatchlist, type Watchlist } from '../study/watchlist';
-import type { Side } from '../types';
+import type { Candle, Side } from '../types';
 import { readJson, writeJsonAtomic } from '../util/fs';
 import { log } from '../util/log';
 import { daysBetween, hhmm, isNseOpen, istParts, sleep } from '../util/time';
 import { TERMINAL, toTick, type Broker, type OrderRequest, type OrderSnapshot, type OrderStatus } from './brokers/broker';
 import { isAuthError, isDefiniteRejection } from './brokers/errors';
 import { costModel, dailyLossBreached, isPositive, positionSize, validateEntryPrice } from './risk';
-import { atr } from './indicators';
+import { atr, sma } from './indicators';
 import { finishManualOrder, pendingManualOrders, type ManualOrder } from './manualOrders';
 import { clearStopRequest, stopRequested } from './runLock';
 import { readActiveStrategy } from './activeStrategy';
@@ -63,12 +63,16 @@ export interface OrderIntent {
   manual?: boolean;
   /** The strategy that decided this buy; the position later exits by the same strategy's rules. */
   strategy?: StrategyName;
+  /** The company's sector (from the watchlist), for the per-sector limit. */
+  sector?: string;
 }
 
 export type Protection = 'confirmed' | 'pending' | 'none';
 
 export interface PositionState {
   symbol: string;
+  /** Sector from the watchlist at the time of the buy (per-sector limit). */
+  sector?: string;
   qty: number;
   entryPrice: number;
   entryDate: string;
@@ -102,6 +106,8 @@ export interface EngineState {
   lastEquity?: number;
   haltedOn?: string;
   lastEvaluated?: string;
+  /** Highest account value seen at a daily check (for the drawdown brake). */
+  peakEquity?: number;
 }
 
 export interface EnginePaths {
@@ -127,6 +133,8 @@ export interface EngineDeps {
   now?: () => Date;
   /** Wait between order-status polls; injectable so tests run instantly. */
   wait?: (ms: number) => Promise<void>;
+  /** NIFTY 50 daily candles, for the market filter. Without it the market filter is skipped. */
+  index?: (from: Date, to: Date) => Promise<Candle[]>;
 }
 
 export type KillSwitch = 'off' | 'halt' | 'flatten';
@@ -456,6 +464,7 @@ export class Engine {
         protection: 'none',
         ...(intent.manual ? { manual: true } : {}),
         ...(intent.strategy ? { strategy: intent.strategy } : {}),
+        ...(intent.sector ? { sector: intent.sector } : {}),
       });
       p.entryPrice = (p.entryPrice * p.qty + value) / (p.qty + delta);
       p.qty += delta;
@@ -908,6 +917,13 @@ export class Engine {
     const wl = this.watchlist();
     if (!wl) return;
     if (!wl.entries.length) return log.warn('The watchlist has no stocks (no company passed the study). Choose another stock-picking style on the Market Watchlist page and refresh it; no new entries.');
+    const prot = protectionSettings(this.d.cfg);
+    const guard = await this.protectionGuard(prot);
+    if (guard) return log.warn(`No new buys today: ${guard} Holdings stay protected by their stop-losses.`);
+    const sectorOf = new Map(wl.entries.filter((e) => e.sector).map((e) => [e.symbol, e.sector!]));
+    const inSector = (sector: string) =>
+      Object.values(this.state.positions).filter((p) => (p.sector ?? sectorOf.get(p.symbol)) === sector).length +
+      Object.values(this.state.intents).filter((i) => i.kind === 'entry' && !FINAL_INTENT.has(i.status) && !this.state.positions[i.symbol] && (i.sector ?? sectorOf.get(i.symbol)) === sector).length;
 
     // Daily summary, so a day without buys is visible in the log rather than silent.
     let checked = 0;
@@ -922,6 +938,10 @@ export class Engine {
         break;
       }
       if (this.state.positions[entry.symbol]) continue;
+      if (prot.maxPerSector > 0 && entry.sector && inSector(entry.sector) >= prot.maxPerSector) {
+        noSignal.push(`${entry.symbol} (already ${prot.maxPerSector} ${entry.sector} companies)`);
+        continue;
+      }
       // One entry attempt per symbol per day, whatever happened to it. Restarting mid-evaluation cannot double-buy.
       if (this.intentsFor(entry.symbol, (i) => i.kind === 'entry' && (i.day === ctx.today || !FINAL_INTENT.has(i.status))).length) continue;
       try {
@@ -962,6 +982,7 @@ export class Engine {
           reason: sig.reason,
           studyScore: entry.combinedScore,
           strategy: active,
+          ...(entry.sector ? { sector: entry.sector } : {}),
         });
         log.info(`BUY ${entry.symbol} ${size.qty} @ ~₹${price.toFixed(2)}, stop ₹${sig.stop.toFixed(2)} (${active}: ${sig.reason}; ${size.reason}; study score ${entry.combinedScore}) [${intent.id}]`);
         await this.send(intent);
@@ -983,6 +1004,41 @@ export class Engine {
       `Daily check done (${label}): ${checked} of ${wl.entries.length} watchlist stocks checked, ${bought} bought${full ? `; stopped at the limit of ${risk.maxOpenPositions} open positions` : ''}.` +
         (noSignal.length ? ` No buy signal today: ${noSignal.slice(0, 10).join('; ')}${noSignal.length > 10 ? `; +${noSignal.length - 10} more` : ''}.` : ''),
     );
+  }
+
+  /**
+   * Loss protection before any new buy (exits and stop-losses are never affected):
+   * - drawdown brake: no new buys while the account is `drawdownBrakePct` below its highest value;
+   * - market filter: no new buys while the NIFTY 50 closes below its `marketSmaDays` average.
+   * Returns the reason to skip buying today, or undefined.
+   */
+  private async protectionGuard(prot: ReturnType<typeof protectionSettings>): Promise<string | undefined> {
+    if (prot.drawdownBrakePct > 0) {
+      const { equity } = await this.equity();
+      if (isPositive(equity)) {
+        this.state.peakEquity = Math.max(this.state.peakEquity ?? equity, equity);
+        const fall = 1 - equity / this.state.peakEquity;
+        if (fall >= prot.drawdownBrakePct) {
+          return `the account is ${(fall * 100).toFixed(1)}% below its highest value (₹${Math.round(this.state.peakEquity).toLocaleString('en-IN')}); the drawdown brake waits until it is less than ${(prot.drawdownBrakePct * 100).toFixed(0)}% below.`;
+        }
+      }
+    }
+    if (prot.marketFilter && this.d.index) {
+      let c: Candle[];
+      try {
+        c = await this.d.index(new Date(this.now().getTime() - Math.ceil(prot.marketSmaDays * 1.6 + 30) * 86_400_000), this.now());
+      } catch (e) {
+        return `the NIFTY 50 could not be loaded (${(e as Error).message}), so the market filter cannot confirm the market is healthy.`;
+      }
+      const closes = c.map((x) => x.close).filter(isPositive);
+      const avg = sma(closes, prot.marketSmaDays).at(-1);
+      const last = closes.at(-1);
+      if (last === undefined || avg === undefined || Number.isNaN(avg)) return `not enough NIFTY 50 history for its ${prot.marketSmaDays}-day average.`;
+      if (last < avg) {
+        return `the NIFTY 50 (${last.toFixed(0)}) is below its ${prot.marketSmaDays}-day average (${avg.toFixed(0)}), so the market is falling (William O'Neil's "M" rule: do not buy in a falling market).`;
+      }
+    }
+    return undefined;
   }
 
   /** The engine only buys what the latest company study approved, and refuses a stale study. */

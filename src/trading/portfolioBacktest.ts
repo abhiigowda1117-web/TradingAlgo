@@ -24,6 +24,10 @@ export interface PortfolioOptions {
   settleNextSession?: boolean;
   /** Sell open positions at the final close (as trades). Default false: report them as open. */
   liquidateAtEnd?: boolean;
+  /** Loss protection, as in the engine: no new buy signals on days the market filter says no ... */
+  marketOk?: (day: string) => boolean;
+  /** ... or while the account is this far below its highest value (0 or absent = off). */
+  drawdownBrakePct?: number;
 }
 
 export interface PortfolioTrade {
@@ -77,6 +81,8 @@ export interface PortfolioResult {
   costs: { total: number; stt: number; stamp: number; exchangeSebiGst: number; brokerage: number; dp: number; slippage: number };
   /** Equity if every open position were sold at the final close, after slippage and selling costs. */
   liquidationValue: number;
+  /** Days on which loss protection stopped new buys. */
+  protectedDays: { market: number; drawdown: number };
 }
 
 interface Pos {
@@ -127,6 +133,8 @@ export function runPortfolioBacktest(candles: Record<string, Candle[]>, o: Portf
 
   let cash = o.initialCapital;
   let unsettled = 0;
+  let peak = o.initialCapital;
+  const protectedDays = { market: 0, drawdown: 0 };
   const positions = new Map<string, Pos>();
   const pendingExits = new Map<string, string>();
   let pendingEntries: { symbol: string; stop: number }[] = [];
@@ -237,7 +245,13 @@ export function runPortfolioBacktest(candles: Record<string, Candle[]>, o: Portf
         p.highestClose = x.highestClose;
       }
     }
-    for (const d of data) {
+    const equityNow = cash + unsettled + marked();
+    peak = Math.max(peak, equityNow);
+    const brake = (o.drawdownBrakePct ?? 0) > 0 && equityNow <= peak * (1 - o.drawdownBrakePct!);
+    const marketBad = o.marketOk ? !o.marketOk(day) : false;
+    if (brake) protectedDays.drawdown++;
+    if (marketBad) protectedDays.market++;
+    for (const d of brake || marketBad ? [] : data) {
       if (positions.has(d.symbol) || !eligible(d.symbol, day)) continue;
       const i = d.byDay.get(day);
       if (i === undefined) continue;
@@ -277,5 +291,5 @@ export function runPortfolioBacktest(candles: Record<string, Candle[]>, o: Portf
       return a + value - tradeCosts('SELL', value, o.costs).total;
     }, 0);
 
-  return { calendar, curve, trades, open, skipped, costs, liquidationValue };
+  return { calendar, curve, trades, open, skipped, costs, liquidationValue, protectedDays };
 }

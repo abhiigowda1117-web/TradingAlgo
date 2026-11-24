@@ -34,6 +34,12 @@ export function applyPresets(p: { presets: string; activeStrategy: string; activ
     if (p.engineLock && p.engineStopRequest && runningEngine(p.engineLock)) requestStop(p.engineStopRequest, 'autopilot (new limits)');
     applied.push('invest-80');
   }
+  // "protection-1": loss protection (market filter, drawdown brake, per-sector limit) in the engine;
+  // a running engine is restarted once to load it.
+  if (!done.includes('protection-1')) {
+    if (!applied.includes('invest-80') && p.engineLock && p.engineStopRequest && runningEngine(p.engineLock)) requestStop(p.engineStopRequest, 'autopilot (loss protection)');
+    applied.push('protection-1');
+  }
   if (applied.length) {
     mkdirSync(dirname(p.presets), { recursive: true });
     writeFileSync(p.presets, JSON.stringify({ applied: [...done, ...applied] }));

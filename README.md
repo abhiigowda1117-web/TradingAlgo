@@ -286,6 +286,17 @@ Sizing uses the worst-case loss per share: entry slippage, a stop-limit fill at 
 
 The engine also refuses new entries whenever anything is uncertain: the watchlist is missing or older than `watchlistMaxAgeDays`; an order's outcome is unknown; a position is not protected by a broker-confirmed stop; the broker's position or order lookup failed; equity can't be valued; or the kill switch is on.
 
+### Loss protection (`config/trading.json` → `protection`)
+Three safety layers on top of every strategy. They only stop **new buys**: holdings keep their stop-losses and sell rules.
+
+| Setting | Default | What it does |
+|---|---|---|
+| `marketFilter`, `marketSmaDays` | on, 200 | No new buys while the NIFTY 50 closes below its 200-day average (a falling market, William O'Neil's "M" rule). If the NIFTY 50 cannot be loaded, no new buys that day. |
+| `drawdownBrakePct` | 10% | No new buys while the account is 10% or more below its highest value; buying resumes once it is back within 10%. |
+| `maxPerSector` | 3 | At most 3 companies from the same sector (e.g. banks), so one bad sector cannot sink the account. |
+
+The Strategy Lab and `npm run portfolio` apply the market filter and the drawdown brake in the same way (the test data has no sectors). Add `--no-protection` to compare against no protection. Each daily check writes the reason to the engine log when protection stops buying.
+
 ### Backtest
 
 ```bash

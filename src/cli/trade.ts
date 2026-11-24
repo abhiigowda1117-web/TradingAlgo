@@ -1,5 +1,6 @@
 import { loadTradingConfig, paths } from '../config';
 import { broker, loadEnv, marketData } from '../factory';
+import { YahooData } from '../data/yahoo';
 import { Engine } from '../trading/engine';
 import { acquireLock, clearStopRequest } from '../trading/runLock';
 import { log, setLogFile } from '../util/log';
@@ -30,7 +31,9 @@ if (flags.has('live') && env.tradingMode !== 'live') {
 }
 
 const market = marketData(env, cfg);
-const engine = new Engine({ broker: broker(env, cfg, market), market, cfg, paths: { ...paths, stopRequest: paths.engineStopRequest } });
+// NIFTY 50 for the market filter (Yahoo ^NSEI, read-only market data).
+const indexData = new YahooData();
+const engine = new Engine({ broker: broker(env, cfg, market), market, cfg, paths: { ...paths, stopRequest: paths.engineStopRequest }, index: (from, to) => indexData.getTickerCandles('^NSEI', from, to) });
 
 if (flags.has('status')) {
   let ltp: Record<string, number> = {};

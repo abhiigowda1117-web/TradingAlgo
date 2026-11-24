@@ -106,7 +106,22 @@ export interface TradingConfig {
     /** Itemised Indian delivery charges used by the backtests. */
     costs: CostSchedule;
   };
+  /** Extra loss protection on top of every strategy (all optional; see protectionSettings). */
+  protection?: Partial<ProtectionConfig>;
 }
+
+export interface ProtectionConfig {
+  /** No new buys while the NIFTY 50 closes below its `marketSmaDays` average (a falling market). */
+  marketFilter: boolean;
+  marketSmaDays: number;
+  /** No new buys while the account is this far below its highest value (0 = off). */
+  drawdownBrakePct: number;
+  /** At most this many companies from the same sector (0 = no limit). */
+  maxPerSector: number;
+}
+
+export const DEFAULT_PROTECTION: ProtectionConfig = { marketFilter: true, marketSmaDays: 200, drawdownBrakePct: 0.1, maxPerSector: 3 };
+export const protectionSettings = (cfg: Pick<TradingConfig, 'protection'>): ProtectionConfig => ({ ...DEFAULT_PROTECTION, ...(cfg.protection ?? {}) });
 
 export function loadJson<T>(path: string): T {
   return JSON.parse(readFileSync(path, 'utf8')) as T;
@@ -116,6 +131,11 @@ export const loadStudyConfig = () => loadJson<StudyConfig>(paths.studyConfig);
 export function loadTradingConfig(path = paths.tradingConfig): TradingConfig {
   const cfg = loadJson<TradingConfig>(path);
   const errors = validateTradingConfig(cfg);
+  const pr = protectionSettings(cfg);
+  if (typeof pr.marketFilter !== 'boolean') errors.push('protection.marketFilter must be true or false');
+  if (!Number.isInteger(pr.marketSmaDays) || pr.marketSmaDays < 20 || pr.marketSmaDays > 400) errors.push('protection.marketSmaDays must be a whole number from 20 to 400');
+  if (!(pr.drawdownBrakePct >= 0 && pr.drawdownBrakePct <= 0.5)) errors.push('protection.drawdownBrakePct must be from 0 (off) to 0.5');
+  if (!Number.isInteger(pr.maxPerSector) || pr.maxPerSector < 0 || pr.maxPerSector > 50) errors.push('protection.maxPerSector must be a whole number from 0 (no limit) to 50');
   if (errors.length) throw new Error(`Invalid ${path}:\n  - ${errors.join('\n  - ')}`);
   return cfg;
 }

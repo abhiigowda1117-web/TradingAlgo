@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { writeJsonAtomic } from '../util/fs';
-import { loadStudyConfig, loadTradingConfig, paths, ROOT } from '../config';
+import { loadStudyConfig, loadTradingConfig, paths, protectionSettings, ROOT } from '../config';
 import { readActiveStrategy } from '../trading/activeStrategy';
 import { STRATEGIES, STRATEGY_IDS, type StrategyName } from '../trading/strategy';
 import { isStrategyName } from '../trading/strategyIds';
@@ -11,6 +11,7 @@ import { RateLimitError, YahooData } from '../data/yahoo';
 import { alignBenchmark, buyAndHold, type BenchmarkKind } from '../trading/benchmark';
 import { summarizeCurve, summarizeStrategy, type PerformanceSummary } from '../trading/performance';
 import { runPortfolioBacktest } from '../trading/portfolioBacktest';
+import { marketOkFromIndex } from '../trading/protection';
 import type { Candle } from '../types';
 import { istParts, sleep } from '../util/time';
 import { parseArgs, symbolList } from './args';
@@ -98,7 +99,13 @@ if (!isStrategyName(chosen)) {
   process.exit(1);
 }
 const strategyLabel = (id: StrategyName) => STRATEGIES.find((x) => x.id === id)!.name;
+// Loss protection, the same as the engine's (config/trading.json "protection"); --no-protection turns it off.
+const prot = protectionSettings(cfg);
+const useProtection = !flags.has('no-protection');
+const marketOk = useProtection && prot.marketFilter ? marketOkFromIndex(benchSeries, prot.marketSmaDays) : undefined;
 const runWith = (name: StrategyName) => runPortfolioBacktest(candles, {
+  marketOk,
+  drawdownBrakePct: useProtection ? prot.drawdownBrakePct : 0,
   strategy: { ...cfg.strategy, name },
   risk: cfg.risk,
   costs: cfg.backtest.costs,
@@ -155,7 +162,7 @@ if (flags.has('compare')) {
       period: { from: first, to: last, split: periods[2]![1], tradingDays: n },
       universe: { count: Object.keys(candles).length, source: universeSource, missing },
       benchmark: { label: benchLabel, kind: benchKind, periods: periods.map(([label, a, b]) => ({ ...benchSum(a, b), label })) },
-      settings: { capital, maxOpenPositions: cfg.risk.maxOpenPositions, riskPerTrade: cfg.risk.riskPerTrade, slippagePct: cfg.backtest.slippagePct },
+      settings: { capital, maxOpenPositions: cfg.risk.maxOpenPositions, riskPerTrade: cfg.risk.riskPerTrade, slippagePct: cfg.backtest.slippagePct, protection: useProtection ? { marketFilter: prot.marketFilter, marketSmaDays: prot.marketSmaDays, drawdownBrakePct: prot.drawdownBrakePct } : null },
       activeAtRun: active,
       days: result.calendar.filter(keep),
       benchmarkCurve: bench.curve.filter(keep).map((x) => Math.round(x.equity)),
@@ -248,7 +255,7 @@ if (opts.json) {
     period: { from: first, to: last, split, tradingDays: result.calendar.length },
     universe: { count: Object.keys(candles).length, source: universeSource, missing },
     benchmark: { label: benchLabel, kind: benchKind, filledDays: aligned.filledDays.length },
-    settings: { capital, maxOpenPositions: cfg.risk.maxOpenPositions, riskPerTrade: cfg.risk.riskPerTrade, slippagePct: cfg.backtest.slippagePct },
+    settings: { capital, maxOpenPositions: cfg.risk.maxOpenPositions, riskPerTrade: cfg.risk.riskPerTrade, slippagePct: cfg.backtest.slippagePct, protection: useProtection ? { marketFilter: prot.marketFilter, marketSmaDays: prot.marketSmaDays, drawdownBrakePct: prot.drawdownBrakePct } : null },
     periods: periods.map(([label, a, b]) => ({ label, ...s(a, b) })),
     liquidation: { strategy: result.liquidationValue, benchmark: bench.liquidationValue },
     costs: result.costs,

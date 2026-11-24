@@ -194,6 +194,12 @@ export function Strategies() {
                     <b>Test period</b> ({lab.period.split} onwards) is the honest check: the rules were not adjusted on it. A strategy that only looks good over the full period but lags the NIFTY 50 in the test period has no proven edge.
                   </li>
                   <li>All strategies use standard textbook settings; none were tuned to these results.</li>
+                  {lab.settings.protection && (
+                    <li>
+                      Loss protection applied, as in the engine:{lab.settings.protection.marketFilter ? ` no new buys while the NIFTY 50 is below its ${lab.settings.protection.marketSmaDays}-day average;` : ''}
+                      {lab.settings.protection.drawdownBrakePct > 0 ? ` no new buys while the account is ${(lab.settings.protection.drawdownBrakePct * 100).toFixed(0)}% or more below its best value.` : ''} (The per-sector limit is not simulated: the test data has no sectors.)
+                    </li>
+                  )}
                   {lab.survivorshipBias && <li>The stock list is today's large caps, which flatters every strategy (survivorship bias).</li>}
                   <li>Past results do not predict future returns. Compared on {istTime(lab.generatedAt)}.</li>
                 </ul>

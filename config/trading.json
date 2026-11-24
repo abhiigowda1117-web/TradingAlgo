@@ -19,6 +19,12 @@
     "maxOrderValue": 200000,
     "maxPriceDeviationPct": 0.03
   },
+  "protection": {
+    "marketFilter": true,
+    "marketSmaDays": 200,
+    "drawdownBrakePct": 0.1,
+    "maxPerSector": 3
+  },
   "engine": {
     "evaluateAt": "15:10",
     "pollSeconds": 30,

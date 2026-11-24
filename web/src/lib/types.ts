@@ -227,7 +227,7 @@ export interface StrategyLab {
   period: { from: string; to: string; split: string; tradingDays: number };
   universe: { count: number; source: string; missing: string[] };
   benchmark: { label: string; kind: string; periods: PerfSummary[] };
-  settings: { capital: number; maxOpenPositions: number; riskPerTrade: number; slippagePct: number };
+  settings: { capital: number; maxOpenPositions: number; riskPerTrade: number; slippagePct: number; protection?: { marketFilter: boolean; marketSmaDays: number; drawdownBrakePct: number } | null };
   days: string[];
   benchmarkCurve: number[];
   strategies: { id: StrategyInfo['id']; name: string; periods: PerfSummary[]; liquidation: number; curve: number[] }[];
