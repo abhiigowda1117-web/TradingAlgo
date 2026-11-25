@@ -194,7 +194,7 @@ export interface ControlView {
 }
 
 export interface StrategyInfo {
-  id: 'emaTrend' | 'donchian' | 'momentum52' | 'rsi2' | 'supertrend' | 'minervini' | 'canslim' | 'weinstein' | 'buyHold';
+  id: 'ema548';
   name: string;
   style: string;
   summary: string;
@@ -203,6 +203,16 @@ export interface StrategyInfo {
   suits: string;
   inspiredBy?: string;
   source?: string;
+}
+
+export interface IntradayView {
+  enabled: boolean;
+  settings: { allocationPct: number; riskPerTrade: number; maxPositionPct: number; maxTradesPerDay: number; lastEntry: string; squareOff: string };
+  strategies: { id: string; name: string; timeframe: string; summary: string; buy: string; sell: string; on: boolean }[];
+  positions: { id: string; symbol: string; strategy: string; side: 'long' | 'short'; qty: number; entry: number; stop: number; target: number; openedAt: string; reason: string; last: number | null; pnl: number | null }[];
+  tradesToday: number;
+  closedToday: { time: string; symbol: string; side: string; qty: number; price: number; pnl: number; reason: string; strategy: string }[];
+  realizedToday: number;
 }
 
 export interface PerfSummary {

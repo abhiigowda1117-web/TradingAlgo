@@ -105,7 +105,7 @@ export function EngineControls({ compact = false }: { compact?: boolean }) {
       </div>
       {!compact && c.autopilot && !live && (
         <p className="rounded-lg border border-accent/30 bg-accent/10 px-3 py-2 text-sm text-slate-200">
-          🤖 <b>Autopilot on:</b> every trading day AlgoTrade analyses the companies from 08:45 IST, buys and sells by itself at 15:10 IST (up to {c.maxOpenPositions ?? 10} companies at a time, investing up to about 80% of the money), and protects every position with a stop-loss all day. If the computer restarts, the engine starts again by itself. Press <b>Stop engine</b> to switch autopilot off.
+          🤖 <b>Autopilot on:</b> every trading day AlgoTrade analyses the companies from 08:45 IST. <b>Daily:</b> EMA 5/48 + RSI + MACD buys and sells holdings at 15:10 IST (up to {c.maxOpenPositions ?? 12} companies, up to about 70% of the money). <b>Intraday:</b> Fibonacci + 20 EMA, Camarilla pivots and the 9:30 opening range trade long and short from 9:30, using up to 20%, all closed by 15:15. Every trade has a stop-loss. If the computer restarts, the engine starts again by itself. Press <b>Stop engine</b> to switch autopilot off.
         </p>
       )}
       {live && <ErrorBox message='TRADING_MODE in .env is "live". The website only runs the engine in paper mode; its buttons are disabled.' />}

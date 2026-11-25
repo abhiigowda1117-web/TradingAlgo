@@ -68,7 +68,7 @@ async function setup(opts: { mode?: 'paper' | 'live'; now?: Date } = {}) {
   const control = new ControlService({ root: ROOT, engineLock: lock, engineStopRequest: join(dir, 'stop-request'), jobsLog: join(dir, 'jobs') }, { tradingMode: opts.mode ?? 'paper', spawn, stopTimeoutMs: 50 });
   const deps: RouteDeps = {
     files, backtestResult: join(dir, 'bt.json'), tradingConfig: tradingCfg, env: { TRADING_MODE: opts.mode ?? 'paper' }, quotes: async () => [],
-    control, manualOrdersDir: join(dir, 'orders'), activeStrategyFile: join(dir, 'active.json'), strategyLabFile: join(dir, 'lab.json'), activeProfileFile: join(dir, 'profile.json'), now: () => opts.now ?? OPEN,
+    control, manualOrdersDir: join(dir, 'orders'), activeStrategyFile: join(dir, 'active.json'), strategyLabFile: join(dir, 'lab.json'), activeProfileFile: join(dir, 'profile.json'), intradayStateFile: join(dir, 'intraday.json'), now: () => opts.now ?? OPEN,
   };
   const app = createApp({
     db: pool, users, sessions: new SessionRepo(pool, 3_600_000), logs: new SystemLogRepo(pool), allowedOrigins: ['http://localhost:5173'], cookieSecure: false, trustProxy: false,
@@ -420,5 +420,21 @@ describe('protection-1 settings', () => {
     expect(applyPresets(p, 'paper')).toEqual(['protection-1', 'doc-strategies-1']);
     expect(stopRequested(p.engineStopRequest)).toBe(true);
     expect(applyPresets(p, 'paper')).toEqual([]);
+  });
+});
+
+describe('intraday trades on the website', () => {
+  it('lists the three intraday strategies, the open intraday trades and today\'s closed ones', async () => {
+    const s = await setup();
+    writeFileSync(join(s.dir, 'intraday.json'), JSON.stringify({ day: '2026-11-06', trades: 2, done: [], seq: 2, positions: { I2: { id: 'I2', symbol: 'ITC', strategy: 'camarilla', side: 'short', qty: 100, entry: 400, stop: 404, target: 392, day: '2026-11-06', openedAt: '2026-11-06T04:30:00.000Z', reason: 'R3' } } }));
+    writeFileSync(join(s.dir, 'trades.jsonl'), [JSON.stringify({ time: '2026-11-06T04:20:00.000Z', symbol: 'TCS', side: 'SELL', qty: 10, price: 3000, pnl: 450, reason: 'target 1:2 reached', strategy: 'orb930', intraday: true }), JSON.stringify({ time: '2026-11-05T04:20:00.000Z', symbol: 'INFY', side: 'SELL', qty: 1, price: 1, pnl: -5, intraday: true })].join('\n') + '\n');
+    const owner = await s.signIn('owner');
+    const v = (await (await owner.get('/api/intraday')).json()) as { strategies: { id: string }[]; positions: { symbol: string; side: string }[]; closedToday: { symbol: string }[]; realizedToday: number; tradesToday: number; settings: { allocationPct: number } };
+    expect(v.strategies.map((x) => x.id)).toEqual(['orb930', 'camarilla', 'fib20']);
+    expect(v.positions).toEqual([expect.objectContaining({ symbol: 'ITC', side: 'short' })]);
+    expect(v.closedToday.map((t) => t.symbol)).toEqual(['TCS']); // yesterday's trade is not "today"
+    expect(v.realizedToday).toBe(450);
+    expect(v.tradesToday).toBe(2);
+    expect(v.settings.allocationPct).toBe(0.2);
   });
 });

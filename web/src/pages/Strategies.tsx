@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { JobRunner } from '../components/Controls';
 import { EquityChart } from '../components/EquityChart';
+import { IntradayStrategies } from '../components/Intraday';
 import { Badge, Card, Empty, ErrorBox, Loading, PageHeader } from '../components/ui';
 import { api } from '../lib/api';
 import { istTime, pct, signedPct } from '../lib/format';
@@ -13,7 +14,7 @@ import { useApi } from '../lib/useApi';
  * PAPER engine's new buys.
  */
 
-const COLORS: Record<StrategyInfo['id'], string> = { emaTrend: '#3db8ff', donchian: '#f59e0b', momentum52: '#a3e635', rsi2: '#e879f9', supertrend: '#fb7185', minervini: '#22d3ee', canslim: '#facc15', weinstein: '#c084fc', buyHold: '#34d399' };
+const COLORS: Record<StrategyInfo['id'], string> = { ema548: '#3db8ff' };
 const NIFTY = '#94a3b8';
 const TEST = 2; // periods: [full, training, test]
 
@@ -141,7 +142,7 @@ export function Strategies() {
     <>
       <PageHeader
         title="Strategy Lab"
-        description="Well-known trading strategies from famous traders, compared honestly on the same stocks, costs and risk rules against simply holding the NIFTY 50. Pick which one the paper engine uses."
+        description="The strategies from your strategy document: EMA 5/48 + RSI + MACD for daily holdings, and three intraday strategies (Fibonacci + 20 EMA, Camarilla pivots, 9:30 opening range). The daily strategy is compared honestly against simply holding the NIFTY 50."
       />
       {error && <ErrorBox message={error} />}
       {!v ? (
@@ -168,6 +169,8 @@ export function Strategies() {
               <StrategyCard key={s.id} s={s} v={v} onChoose={(id) => void choose(id)} busy={busy} />
             ))}
           </div>
+
+          <IntradayStrategies />
 
           <Card title="Compare all strategies">
             <JobRunner job="lab" onDone={reload} />

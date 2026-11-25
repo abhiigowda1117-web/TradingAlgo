@@ -107,22 +107,36 @@ Open **http://localhost:3001** and sign in. Press Ctrl+C to stop.
 
 **Windows, one click:** double-click `start-algotrade.cmd` in the TradingAlgo folder. It stops any old server on port 3001, runs `git pull`, installs anything new, rebuilds the website, starts the server and opens the browser. Keep its window open; closing it stops the website.
 
-### Strategy Lab: nine strategies, compared honestly
-The **Strategy Lab** page describes nine long-only strategies in plain words and backtests all of them on the same stocks, period, costs and risk rules against simply holding the NIFTY 50:
+### Strategies (from the owner's strategy document)
+AlgoTrade trades **only** the strategies in the owner's document (`algo_trade_stratergy_stocks.docx`). The earlier strategies were removed: holdings they bought are now sold by the rules below.
 
-| Strategy | Style | Buys | Sells |
+**Daily (holds shares, delivery):** EMA 5/48 + RSI + MACD, checked at 15:10 IST.
+
+| | Rule |
+|---|---|
+| Buy | EMA 5 above EMA 48; close above both; a small dip in the last 3 sessions; RSI(14) above 50; MACD above its signal line; a green candle confirms |
+| Stop-loss | Below the lowest low of the last 5 sessions |
+| Sell | 1:2 target, the stop-loss, EMA 5 falls below EMA 48, RSI below 50, or MACD crosses below its signal |
+
+Delivery shares cannot be shorted, so the document's SELL setup closes holdings here.
+
+**Intraday (long and short, paper only, all closed by 15:15 IST):**
+
+| Strategy | Candles | Buy | Sell short |
 |---|---|---|---|
-| EMA Trend (default) | Trend following | EMA 20 crosses above EMA 50, above EMA 200, RSI 50–70 | EMA 20 below EMA 50, or 3-ATR trailing stop |
-| Donchian Breakout | Breakout (Turtle) | Fresh close above the previous 55-day high | Close below the previous 20-day low (stop trails to it) |
-| 52-Week High Momentum | Momentum | Fresh 20-day closing high within 5% of the 52-week high, above rising 50/200-day averages | Close below the 50-day average, or 3-ATR trailing stop |
-| RSI-2 Pullback | Mean reversion | RSI(2) below 10 while above the 200-day average | Close above the 5-day average, or the 2-ATR stop |
-| Supertrend | Trend following | Supertrend (10, 3) flips up | Supertrend flips down (stop trails the line) |
-| Minervini Trend Template | Momentum (Mark Minervini) | All 8 Trend Template rules (above rising 50/150/200-day averages, ≥ 30% above the 52-week low, within 25% of the high), then a fresh 20-day closing high on volume ≥ 1.4× average | Close below the 50-day average; stop at most 8% below the buy, trailing 3 ATR |
-| CAN SLIM breakout | Growth breakout (William O'Neil) | Close breaks the previous 50-day high, within 15% of the 52-week high, on volume ≥ 1.4× average | +25% take profit, close below the 50-day average, or the 8% stop |
-| Weinstein Stage 2 | Stage analysis (Stan Weinstein) | Above a rising 150-day (30-week) average, fresh 50-day breakout on volume ≥ 2× average | Close below the 150-day average (stop trails to 5% below it) |
-| Buy right, sit tight | Long-term investing (Jhunjhunwala / QGLP) | Above a rising 200-day average and no more than 15% above it | Only when the close is more than 10% below the 200-day average |
+| 9:30 opening range | 5-minute | Break above the 9:15-9:30 high, then a retest that holds | Break below the low, then a retest that fails |
+| Camarilla pivots + 20 EMA | 5-minute | Strong green candle from S3, above the 20 EMA | Strong red candle from R3, below the 20 EMA |
+| Fibonacci + 20 EMA | 15-minute | 50-61.8% pullback near the 20 EMA in an uptrend, above the confirmation candle's high | The mirror image in a downtrend |
 
-Settings are standard textbook values (from each trader's own book) and were not tuned on the data. Minervini's relative-strength ranking and O'Neil's "M" (overall market direction) need data on the whole market and are not automated yet. The results show the full period and an unseen **test period**; a strategy that lags the NIFTY 50 in the test period has no proven edge. Press **Use for paper trading** to choose the strategy for the paper engine's new buys. Each position remembers the strategy that bought it and is sold by that strategy's rules. From the command line: `npm run portfolio -- --strategy donchian`, or `npm run portfolio -- --compare`.
+Every intraday trade:
+- has a stop-loss and a 1:2 target, and risks at most 1% of the account;
+- uses at most 10% of the money, and all intraday trades together at most 20%;
+- counts towards a limit of 6 trades a day, with one trade per strategy per company per day;
+- is opened no later than 15:00.
+
+Profit or loss after charges goes into the paper cash. Prices come from Yahoo Finance, delayed by about 15 minutes, so intraday paper results are only indicative.
+
+**Money:** daily holdings use up to 70% and intraday trades up to 20%, about **90%** in total (`risk.maxTotalExposurePct` + `intraday.allocationPct`, which the settings check caps at 90%). All of these are in `config/trading.json` (`intraday`). The Strategy Lab compares the daily strategy with the NIFTY 50. Free 5-minute history covers only about 60 days, so the intraday strategies are not backtested.
 
 ### Control everything from the website (paper trading only)
 No terminal needed once the site is running:
@@ -274,10 +288,10 @@ The dashboard shows the same content with charts.
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `riskPerTrade` | 1.2% | Max loss per trade if the stop is hit, as a share of equity |
+| `riskPerTrade` | 1% | Max loss per trade if the stop is hit, as a share of equity |
 | `maxPositionPct` | 20% | Max size of one position |
-| `maxTotalExposurePct` | 80% | Max combined value of all positions |
-| `maxOpenPositions` | 12 | Counts orders still in flight. With 1.2% risk and the 80% total cap, the engine invests up to about 80% of the money |
+| `maxTotalExposurePct` | 70% | Max combined value of all daily holdings (intraday trades use up to another 20%) |
+| `maxOpenPositions` | 12 | Counts orders still in flight. Daily holdings use up to 70% (`maxTotalExposurePct`); intraday trades another 20% |
 | `maxDailyLossPct` | 2% | If equity falls this much in a day, no new entries until tomorrow |
 | `maxOrderValue` | ₹2,00,000 | Hard cap per order |
 | `maxPriceDeviationPct` | 3% | Skip an entry if the live price is this far from the latest candle close |

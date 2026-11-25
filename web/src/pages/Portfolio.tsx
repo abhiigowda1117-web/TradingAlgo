@@ -1,4 +1,5 @@
 import { BuyForm, ManualOrdersTable, SellButton, useControl } from '../components/Controls';
+import { IntradayTrades } from '../components/Intraday';
 import { Badge, Card, Empty, ErrorBox, Loading, PageHeader, Stat } from '../components/ui';
 import { inr, inrShort, pct, tone } from '../lib/format';
 import type { EngineStatus } from '../lib/types';
@@ -55,6 +56,7 @@ export function Portfolio() {
               </div>
             )}
           </Card>
+          <IntradayTrades />
           <Card title="Orders from the website">
             <ManualOrdersTable orders={control.data?.orders ?? []} />
           </Card>

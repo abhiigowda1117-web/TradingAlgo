@@ -18,7 +18,9 @@ import type { AutoStudyStatus } from './services/autoStudy';
 import { ControlError, ControlService } from './services/control';
 import { HttpError } from './app';
 import { dashboardTrades, engineStatus, latestBacktest, settingsView } from './services/dashboard';
-import { readKillSwitch, setKillSwitch, tailLines, type EngineFiles, type KillSwitchMode } from './services/engineView';
+import { readKillSwitch, recentTrades, setKillSwitch, tailLines, type EngineFiles, type KillSwitchMode } from './services/engineView';
+import { INTRADAY_STRATEGIES, intradaySettings, type IntradayPosition } from '../trading/intraday';
+import { istParts } from '../util/time';
 
 /** Small TTL cache that also merges concurrent loads (protects Yahoo from bursts). */
 export function cached<T>(ttlMs: number, load: () => Promise<T>): () => Promise<T> {
@@ -55,6 +57,8 @@ export interface RouteDeps {
   strategyLabFile?: string;
   /** Stock-picking style (Buffett, Graham, ...) the company study uses to build the watchlist. */
   activeProfileFile?: string;
+  /** The intraday desk's state file (open intraday trades). */
+  intradayStateFile?: string;
   /** Status of the automatic daily analysis, when it is switched on. */
   autoStudy?: () => AutoStudyStatus;
   now?: () => Date;
@@ -214,6 +218,40 @@ export function apiRoutes(d: RouteDeps): ApiRoutes {
 
   return {
     '/api/control': (_q, s) => controlView(d, s.canControl !== false),
+    '/api/intraday': async () => {
+      const cfg = intradaySettings(d.tradingConfig.intraday);
+      const today = istParts(now()).date;
+      let state: { day?: string; trades?: number; positions?: Record<string, IntradayPosition> } | null = null;
+      if (d.intradayStateFile && existsSync(d.intradayStateFile)) {
+        try {
+          state = JSON.parse(readFileSync(d.intradayStateFile, 'utf8'));
+        } catch {
+          state = null;
+        }
+      }
+      const open = Object.values(state?.positions ?? {});
+      const last: Record<string, number> = {};
+      if (open.length) {
+        try {
+          for (const q of await d.quotes([...new Set(open.map((p) => `${p.symbol}.NS`))])) if (q.price) last[q.ticker.replace(/\.NS$/, '')] = q.price;
+        } catch {
+          /* prices unavailable: show the trades without live P&L */
+        }
+      }
+      const closed = recentTrades(d.files.trades, 500).filter((t) => t.intraday === true && typeof t.time === 'string' && istParts(new Date(t.time)).date === today && typeof t.pnl === 'number');
+      return {
+        enabled: cfg.enabled && d.env.TRADING_MODE !== 'live',
+        settings: { allocationPct: cfg.allocationPct, riskPerTrade: cfg.riskPerTrade, maxPositionPct: cfg.maxPositionPct, maxTradesPerDay: cfg.maxTradesPerDay, lastEntry: cfg.lastEntry, squareOff: cfg.squareOff },
+        strategies: INTRADAY_STRATEGIES.map((x) => ({ ...x, on: cfg.strategies[x.id] })),
+        positions: open.map((p) => {
+          const px = last[p.symbol] ?? null;
+          return { ...p, last: px, pnl: px === null ? null : (p.side === 'long' ? px - p.entry : p.entry - px) * p.qty };
+        }),
+        tradesToday: state?.day === today ? state.trades ?? 0 : 0,
+        closedToday: closed.map((t) => ({ time: String(t.time), symbol: String(t.symbol), side: String(t.side), qty: Number(t.qty), price: Number(t.price), pnl: Number(t.pnl), reason: String(t.reason ?? ''), strategy: String(t.strategy ?? '') })),
+        realizedToday: closed.reduce((a, t) => a + Number(t.pnl), 0),
+      };
+    },
     '/api/strategies': (_q, s) => {
       let lab: unknown = null;
       if (d.strategyLabFile && existsSync(d.strategyLabFile)) {
