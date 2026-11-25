@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { StrategyName } from './trading/strategyIds';
 import type { CostSchedule } from './trading/costs';
+import { intradaySettings, type IntradayConfig } from './trading/intraday';
 import { validateTradingConfig } from './trading/risk';
 import type { MetricKey } from './types';
 
@@ -24,6 +25,7 @@ export const paths = {
   activeStrategy: resolve(ROOT, 'data/active-strategy.json'),
   activeProfile: resolve(ROOT, 'data/active-profile.json'),
   engineWanted: resolve(ROOT, 'data/engine.wanted'),
+  intradayState: resolve(ROOT, 'data/intraday.json'),
   presets: resolve(ROOT, 'data/presets-applied.json'),
   strategyLab: resolve(ROOT, 'data/backtests/lab.json'),
   engineLock: resolve(ROOT, 'data/engine.lock'),
@@ -108,6 +110,8 @@ export interface TradingConfig {
   };
   /** Extra loss protection on top of every strategy (all optional; see protectionSettings). */
   protection?: Partial<ProtectionConfig>;
+  /** The intraday desk (see trading/intraday.ts IntradayConfig; all optional). */
+  intraday?: Partial<IntradayConfig>;
 }
 
 export interface ProtectionConfig {
@@ -136,6 +140,14 @@ export function loadTradingConfig(path = paths.tradingConfig): TradingConfig {
   if (!Number.isInteger(pr.marketSmaDays) || pr.marketSmaDays < 20 || pr.marketSmaDays > 400) errors.push('protection.marketSmaDays must be a whole number from 20 to 400');
   if (!(pr.drawdownBrakePct >= 0 && pr.drawdownBrakePct <= 0.5)) errors.push('protection.drawdownBrakePct must be from 0 (off) to 0.5');
   if (!Number.isInteger(pr.maxPerSector) || pr.maxPerSector < 0 || pr.maxPerSector > 50) errors.push('protection.maxPerSector must be a whole number from 0 (no limit) to 50');
+  const it = intradaySettings(cfg.intraday);
+  if (typeof it.enabled !== 'boolean') errors.push('intraday.enabled must be true or false');
+  if (!(it.allocationPct >= 0 && it.allocationPct <= 0.5)) errors.push('intraday.allocationPct must be from 0 to 0.5');
+  if (!(it.riskPerTrade > 0 && it.riskPerTrade <= 0.02)) errors.push('intraday.riskPerTrade must be above 0 and at most 0.02');
+  if (!(it.maxPositionPct > 0 && it.maxPositionPct <= 0.25)) errors.push('intraday.maxPositionPct must be above 0 and at most 0.25');
+  if (!Number.isInteger(it.maxTradesPerDay) || it.maxTradesPerDay < 0 || it.maxTradesPerDay > 50) errors.push('intraday.maxTradesPerDay must be a whole number from 0 to 50');
+  if (!(cfg.risk.maxTotalExposurePct + it.allocationPct <= 0.9 + 1e-9)) errors.push('risk.maxTotalExposurePct + intraday.allocationPct must not exceed 0.9 (90% of the money)');
+  for (const k of ['lastEntry', 'squareOff'] as const) if (!/^\d{2}:\d{2}$/.test(it[k]) || it[k] > '15:20') errors.push(`intraday.${k} must be a time like 15:15, no later than 15:20`);
   if (errors.length) throw new Error(`Invalid ${path}:\n  - ${errors.join('\n  - ')}`);
   return cfg;
 }

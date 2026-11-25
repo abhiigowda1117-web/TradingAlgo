@@ -134,6 +134,15 @@ export class YahooData implements MarketData, FundamentalsProvider {
       .map((q) => ({ time: new Date(q.date), open: q.open!, high: q.high!, low: q.low!, close: q.close!, volume: q.volume ?? 0 }));
   }
 
+  /** Intraday candles (Yahoo keeps 5-minute bars for about 60 days; prices are delayed). */
+  async getIntradayCandles(symbol: string, interval: '5m' | '15m', from: Date, to?: Date): Promise<Candle[]> {
+    const ticker = toYahoo(symbol, this.exchange);
+    const res = await withRateLimitRetry(`chart ${ticker} ${interval}`, () => this.yf.chart(ticker, { period1: from, period2: to ?? new Date(), interval }));
+    return res.quotes
+      .filter((q) => q.open != null && q.high != null && q.low != null && q.close != null)
+      .map((q) => ({ time: new Date(q.date), open: q.open!, high: q.high!, low: q.low!, close: q.close!, volume: q.volume ?? 0 }));
+  }
+
   async getLtp(symbols: string[]): Promise<Record<string, number>> {
     if (symbols.length === 0) return {};
     const quotes = await withRateLimitRetry(`quote ${symbols.join(',')}`, () => this.yf.quote(symbols.map((s) => toYahoo(s, this.exchange))));

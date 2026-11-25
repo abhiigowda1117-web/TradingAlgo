@@ -133,6 +133,8 @@ export interface EngineDeps {
   now?: () => Date;
   /** Wait between order-status polls; injectable so tests run instantly. */
   wait?: (ms: number) => Promise<void>;
+  /** The intraday desk, run after every engine check (paper only). */
+  intraday?: { tick(): Promise<void> };
   /** NIFTY 50 daily candles, for the market filter. Without it the market filter is skipped. */
   index?: (from: Date, to: Date) => Promise<Candle[]>;
 }
@@ -203,6 +205,13 @@ export class Engine {
       }
       try {
         const result = await this.tick();
+        if (this.d.intraday) {
+          try {
+            await this.d.intraday.tick();
+          } catch (e) {
+            log.error(`Intraday desk: ${(e as Error).message}`);
+          }
+        }
         this.beat(result);
         if (result === 'stopped') return;
         consecutiveErrors = 0;

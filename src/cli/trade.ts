@@ -1,10 +1,14 @@
 import { loadTradingConfig, paths } from '../config';
 import { broker, loadEnv, marketData } from '../factory';
 import { YahooData } from '../data/yahoo';
+import { appendFileSync } from 'node:fs';
+import { loadWatchlist } from '../study/watchlist';
+import { PaperBroker } from '../trading/brokers/paperBroker';
 import { Engine } from '../trading/engine';
+import { IntradayDesk, intradaySettings } from '../trading/intraday';
 import { acquireLock, clearStopRequest } from '../trading/runLock';
 import { log, setLogFile } from '../util/log';
-import { sleep } from '../util/time';
+import { istParts, sleep } from '../util/time';
 import { parseArgs } from './args';
 
 // Usage:
@@ -33,7 +37,38 @@ if (flags.has('live') && env.tradingMode !== 'live') {
 const market = marketData(env, cfg);
 // NIFTY 50 for the market filter (Yahoo ^NSEI, read-only market data).
 const indexData = new YahooData();
-const engine = new Engine({ broker: broker(env, cfg, market), market, cfg, paths: { ...paths, stopRequest: paths.engineStopRequest }, index: (from, to) => indexData.getTickerCandles('^NSEI', from, to) });
+const theBroker = broker(env, cfg, market);
+// The intraday desk (Fibonacci + 20 EMA, Camarilla pivots, 9:30 opening range): PAPER ONLY.
+let intraday: IntradayDesk | undefined;
+const engine: Engine = new Engine({
+  broker: theBroker,
+  market,
+  cfg,
+  paths: { ...paths, stopRequest: paths.engineStopRequest },
+  index: (from, to) => indexData.getTickerCandles('^NSEI', from, to),
+  intraday: { tick: async () => intraday?.tick() },
+});
+const intradayCfg = intradaySettings(cfg.intraday);
+if (intradayCfg.enabled && theBroker instanceof PaperBroker) {
+  const paper = theBroker;
+  intraday = new IntradayDesk({
+    cfg: intradayCfg,
+    stateFile: paths.intradayState,
+    now: () => new Date(),
+    holidays: cfg.engine.holidays,
+    symbols: () => loadWatchlist(paths.watchlist)?.entries.map((e) => e.symbol) ?? [],
+    candles5m: (symbol, from) => indexData.getIntradayCandles(symbol, '5m', from),
+    ltp: (symbols) => market.getLtp(symbols),
+    equity: async () => (await engine.equity()).equity,
+    book: (amount) => paper.bookPnl(amount),
+    record: (t) => appendFileSync(paths.trades, JSON.stringify({ time: new Date().toISOString(), broker: 'paper', ...t }) + '\n'),
+    killSwitch: () => engine.killSwitch(),
+    blocked: () => (engine.state.haltedOn === istParts(new Date()).date ? 'daily loss limit reached' : undefined),
+    log,
+  });
+} else if (intradayCfg.enabled) {
+  log.warn('Intraday desk is paper only; it is off in live mode.');
+}
 
 if (flags.has('status')) {
   let ltp: Record<string, number> = {};

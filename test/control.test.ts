@@ -385,14 +385,27 @@ describe('invest-80 settings', () => {
     expect(applyPresets(p, 'paper')).toEqual([]);
   });
 
-  it('the shipped limits can invest about 80% and no more', async () => {
+  it('the shipped limits use about 90% of the money: 70% daily holdings + 20% intraday, 1% risk per trade', async () => {
     const { loadTradingConfig } = await import('../src/config');
-    const r = loadTradingConfig().risk;
-    expect(r.maxTotalExposurePct).toBe(0.8);
-    expect(r.riskPerTrade).toBeLessThanOrEqual(0.012);
-    expect(r.maxDailyLossPct).toBe(0.02);
-    // "Buy right, sit tight" stops sit about 15% below the price: 1.2% risk gives about 8% per company.
-    expect((r.riskPerTrade / 0.15) * r.maxOpenPositions).toBeGreaterThanOrEqual(0.8);
+    const { intradaySettings } = await import('../src/trading/intraday');
+    const cfg = loadTradingConfig();
+    const it = intradaySettings(cfg.intraday);
+    expect(cfg.risk.maxTotalExposurePct).toBe(0.7);
+    expect(it.allocationPct).toBe(0.2);
+    expect(cfg.risk.maxTotalExposurePct + it.allocationPct).toBeCloseTo(0.9);
+    expect(cfg.risk.riskPerTrade).toBe(0.01);
+    expect(it.riskPerTrade).toBe(0.01);
+    expect(cfg.risk.maxDailyLossPct).toBe(0.02);
+  });
+
+  it('refuses settings that would use more than 90%', async () => {
+    const { loadTradingConfig, paths } = await import('../src/config');
+    const { readFileSync: read } = await import('node:fs');
+    const dir = mkdtempSync(join(tmpdir(), 'cfg90-'));
+    const raw = JSON.parse(read(paths.tradingConfig, 'utf8'));
+    raw.intraday.allocationPct = 0.3;
+    writeFileSync(join(dir, 'trading.json'), JSON.stringify(raw));
+    expect(() => loadTradingConfig(join(dir, 'trading.json'))).toThrow(/must not exceed 0.9/);
   });
 });
 

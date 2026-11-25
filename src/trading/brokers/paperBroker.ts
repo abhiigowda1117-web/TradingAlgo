@@ -72,6 +72,13 @@ export class PaperBroker implements Broker {
     return this.acct.cash;
   }
 
+  /** Adds a closed intraday trade's profit (or loss, negative) to the paper cash. */
+  bookPnl(amount: number): void {
+    if (!Number.isFinite(amount)) throw new Error(`invalid P&L ${amount}`);
+    this.acct.cash += amount;
+    this.save();
+  }
+
   getLtp(symbols: string[]) {
     return this.data.getLtp(symbols);
   }

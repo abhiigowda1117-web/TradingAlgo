@@ -11,9 +11,9 @@
     "trailAtr": 3
   },
   "risk": {
-    "riskPerTrade": 0.012,
+    "riskPerTrade": 0.01,
     "maxPositionPct": 0.2,
-    "maxTotalExposurePct": 0.8,
+    "maxTotalExposurePct": 0.7,
     "maxOpenPositions": 12,
     "maxDailyLossPct": 0.02,
     "maxOrderValue": 200000,
@@ -24,6 +24,18 @@
     "marketSmaDays": 200,
     "drawdownBrakePct": 0.1,
     "maxPerSector": 3
+  },
+  "intraday": {
+    "enabled": true,
+    "allocationPct": 0.2,
+    "riskPerTrade": 0.01,
+    "maxPositionPct": 0.1,
+    "maxTradesPerDay": 6,
+    "costPct": 0.0003,
+    "slippagePct": 0.0005,
+    "lastEntry": "15:00",
+    "squareOff": "15:15",
+    "strategies": { "orb930": true, "camarilla": true, "fib20": true }
   },
   "engine": {
     "evaluateAt": "15:10",
