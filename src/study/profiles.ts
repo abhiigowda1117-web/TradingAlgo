@@ -42,7 +42,7 @@ const PROFILES: Record<ProfileId, Profile> = {
     picks: ['Market cap at least ₹10,000 cr, ROE at least 10%, debt/equity at most 1.5, profitable', 'Scored on ROE, growth, debt, margins, P/E, P/B, liquidity and dividends'],
     source: 'config/study.json (you can edit it).',
     limits: 'A general-purpose screen, not one investor\'s method.',
-    pairsWith: 'EMA Trend',
+    pairsWith: 'EMA 5/48 + RSI + MACD',
     screen: null,
     scoring: null,
   },
@@ -56,7 +56,7 @@ const PROFILES: Record<ProfileId, Profile> = {
     source:
       'Buffett\'s letters ("a wonderful company at a fair price") and the study "Buffett\'s Alpha" (Frazzini, Kabiller & Pedersen, Financial Analysts Journal 2018), which found his record is explained by buying cheap, safe, high-quality stocks.',
     limits: 'Moat, management quality and the long-term record cannot be read from one year of free data; the study also notes Buffett used about 1.6x leverage, which this does not.',
-    pairsWith: 'Buy right, sit tight',
+    pairsWith: 'EMA 5/48 + RSI + MACD',
     screen: {
       onMissing: 'fail',
       rules: [
@@ -90,7 +90,7 @@ const PROFILES: Record<ProfileId, Profile> = {
     source: 'Benjamin Graham, The Intelligent Investor, chapter 14 (stock selection for the defensive investor).',
     limits:
       'Graham also required 20 years of dividends, 10 years of profits and about a third more earnings over 10 years, and used 3-year average earnings; free data covers only recent figures. Very strict: often few or no Indian large caps qualify.',
-    pairsWith: 'Buy right, sit tight',
+    pairsWith: 'EMA 5/48 + RSI + MACD',
     screen: {
       onMissing: 'fail',
       rules: [
@@ -120,7 +120,7 @@ const PROFILES: Record<ProfileId, Profile> = {
     picks: ['Profitable, market cap at least ₹5,000 cr', 'Banks, insurers and utilities excluded (as in the book)', 'Scored half on earnings yield, half on return on assets'],
     source: 'Joel Greenblatt, The Little Book That Beats the Market (rank on earnings yield and return on capital, hold a portfolio of the top names).',
     limits: 'Uses 1/P/E instead of EBIT/enterprise value, and return on assets instead of return on capital, because the free data has neither; the book suggests ROA as a stand-in.',
-    pairsWith: 'Buy right, sit tight',
+    pairsWith: 'EMA 5/48 + RSI + MACD',
     screen: {
       onMissing: 'fail',
       excludeSectors: ['Financial Services', 'Utilities'],
@@ -143,7 +143,7 @@ const PROFILES: Record<ProfileId, Profile> = {
     picks: ['PEG (P/E ÷ earnings growth %) at most 1', 'Earnings growth between 15% and 50% (faster is rarely sustainable)', 'Debt/equity at most 0.6'],
     source: 'Peter Lynch, One Up on Wall Street (fast growers, the P/E-to-growth rule, avoid heavy debt).',
     limits: 'The free data gives last year\'s earnings growth, not a multi-year rate, so one unusual year can distort the PEG.',
-    pairsWith: 'Minervini Trend Template',
+    pairsWith: 'EMA 5/48 + RSI + MACD',
     screen: {
       onMissing: 'fail',
       rules: [
@@ -169,7 +169,7 @@ const PROFILES: Record<ProfileId, Profile> = {
     picks: ['Return on equity at least 15%', 'Earnings growth at least 15% and sales growth at least 10%', 'P/E at most 45 and PEG at most 2', 'Debt/equity at most 1.5'],
     source: 'His interviews as reported by Outlook Business and others: size of opportunity, competitiveness and valuation; buy the business; never pay unreasonable prices; hold for the long term.',
     limits: 'He never published fixed numbers; these thresholds are an interpretation. Management quality and the size of the opportunity cannot be measured from free data.',
-    pairsWith: 'Buy right, sit tight',
+    pairsWith: 'EMA 5/48 + RSI + MACD',
     screen: {
       onMissing: 'fail',
       rules: [
@@ -199,7 +199,7 @@ const PROFILES: Record<ProfileId, Profile> = {
     picks: ['Quality: return on equity at least 20%', 'Growth: earnings and sales growth at least 15%', 'Longevity: operating margin at least 15% and market cap at least ₹20,000 cr (established leaders)', 'Price: PEG at most 1.5'],
     source: 'Raamdeo Agrawal\'s QGLP framework (Motilal Oswal wealth creation studies and interviews); growth screens of at least 15% are commonly cited for it.',
     limits: 'Longevity (how long the advantage lasts) cannot be measured from free data; margin and size are rough stand-ins. Last year\'s growth only.',
-    pairsWith: 'Buy right, sit tight',
+    pairsWith: 'EMA 5/48 + RSI + MACD',
     screen: {
       onMissing: 'fail',
       rules: [
@@ -228,7 +228,7 @@ const PROFILES: Record<ProfileId, Profile> = {
     picks: ['Earnings growth at least 25%', 'Sales growth at least 20%', 'Return on equity at least 17%'],
     source: 'William O\'Neil, How to Make Money in Stocks (current and annual earnings growth of 25%+, ROE of 17%+).',
     limits: 'Uses last year\'s growth; O\'Neil also wanted 3 years of 25% annual growth and accelerating quarters, which needs data the free source does not give.',
-    pairsWith: 'CAN SLIM breakout',
+    pairsWith: 'EMA 5/48 + RSI + MACD',
     screen: {
       onMissing: 'fail',
       rules: [

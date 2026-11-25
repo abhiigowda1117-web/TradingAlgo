@@ -3,7 +3,7 @@ import type { Candle } from '../types';
 import { istParts } from '../util/time';
 import { affordableValue, approxCostPct, tradeCosts, type CostSchedule } from './costs';
 import { positionSize } from './risk';
-import { computeIndicators, entrySignal, exitSignal, type Indicators } from './strategy';
+import { computeIndicators, entrySignal, exitSignal, type EntryDecision, type ExitDecision, type Indicators, type OpenTrade } from './strategy';
 
 /** IST trading day of a candle, "YYYY-MM-DD". */
 export const dayKey = (d: Date) => istParts(d).date;
@@ -28,6 +28,11 @@ export interface PortfolioOptions {
   marketOk?: (day: string) => boolean;
   /** ... or while the account is this far below its highest value (0 or absent = off). */
   drawdownBrakePct?: number;
+  /** Replaces the strategy's buy/sell rules (tests of the backtester's mechanics only). */
+  rules?: {
+    entry(c: Candle[], ind: Indicators, i: number): EntryDecision;
+    exit(c: Candle[], ind: Indicators, i: number, t: OpenTrade): ExitDecision;
+  };
 }
 
 export interface PortfolioTrade {
@@ -238,7 +243,7 @@ export function runPortfolioBacktest(candles: Record<string, Candle[]>, o: Portf
       if (!b) continue;
       p.lastClose = b.c.close;
       const d = bySymbol.get(p.symbol)!;
-      const x = exitSignal(d.candles, d.ind, b.i, p, o.strategy);
+      const x = o.rules ? o.rules.exit(d.candles, d.ind, b.i, p) : exitSignal(d.candles, d.ind, b.i, p, o.strategy);
       if (x.exit) pendingExits.set(p.symbol, x.reason);
       else {
         p.stop = x.stop;
@@ -255,7 +260,7 @@ export function runPortfolioBacktest(candles: Record<string, Candle[]>, o: Portf
       if (positions.has(d.symbol) || !eligible(d.symbol, day)) continue;
       const i = d.byDay.get(day);
       if (i === undefined) continue;
-      const e = entrySignal(d.candles, d.ind, i, o.strategy);
+      const e = o.rules ? o.rules.entry(d.candles, d.ind, i) : entrySignal(d.candles, d.ind, i, o.strategy);
       if (e.enter) pendingEntries.push({ symbol: d.symbol, stop: e.stop }); // `data` is alphabetical
     }
 

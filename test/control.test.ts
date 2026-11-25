@@ -246,8 +246,8 @@ describe('website controls: strategy choice', () => {
     writeFileSync(join(s.dir, 'lab.json'), JSON.stringify({ generatedAt: 'x', strategies: [{ id: 'rsi2' }] }));
     const owner = await s.signIn('owner');
     const v = (await (await owner.get('/api/strategies')).json()) as { strategies: { id: string }[]; active: { name: string; source: string }; lab: { strategies: unknown[] }; canControl: boolean };
-    expect(v.strategies.map((x) => x.id)).toEqual(['emaTrend', 'donchian', 'momentum52', 'rsi2', 'supertrend', 'minervini', 'canslim', 'weinstein', 'buyHold']);
-    expect(v.active).toEqual({ name: 'emaTrend', source: 'config' });
+    expect(v.strategies.map((x) => x.id)).toEqual(['ema548']);
+    expect(v.active).toEqual({ name: 'ema548', source: 'config' });
     expect(v.lab.strategies).toHaveLength(1);
     expect(v.canControl).toBe(true);
   });
@@ -255,17 +255,17 @@ describe('website controls: strategy choice', () => {
   it('lets the owner pick the paper engine\'s strategy; refuses view-only accounts, unknown names and live mode', async () => {
     const s = await setup();
     const owner = await s.signIn('owner');
-    const r = await owner.post('/api/control/strategy', { name: 'donchian' });
+    const r = await owner.post('/api/control/strategy', { name: 'ema548' });
     expect(r.status).toBe(200);
-    expect(await r.json()).toMatchObject({ name: 'donchian', changedBy: 'owner', source: 'website' });
-    expect(JSON.parse(readFileSync(join(s.dir, 'active.json'), 'utf8')).name).toBe('donchian');
+    expect(await r.json()).toMatchObject({ name: 'ema548', changedBy: 'owner', source: 'website' });
+    expect(JSON.parse(readFileSync(join(s.dir, 'active.json'), 'utf8')).name).toBe('ema548');
     expect((await owner.post('/api/control/strategy', { name: 'magic' })).status).toBe(400);
+    expect((await owner.post('/api/control/strategy', { name: 'buyHold' })).status).toBe(400); // removed
     const friend = await s.signIn('friend');
-    expect((await friend.post('/api/control/strategy', { name: 'rsi2' })).status).toBe(403);
-    expect(JSON.parse(readFileSync(join(s.dir, 'active.json'), 'utf8')).name).toBe('donchian');
+    expect((await friend.post('/api/control/strategy', { name: 'ema548' })).status).toBe(403);
     close?.();
     const live = await setup({ mode: 'live' });
-    const r2 = await (await live.signIn('owner')).post('/api/control/strategy', { name: 'rsi2' });
+    const r2 = await (await live.signIn('owner')).post('/api/control/strategy', { name: 'ema548' });
     expect(r2.status).toBe(403);
   });
 
@@ -360,8 +360,8 @@ describe('autopilot settings (applied once)', () => {
     const p = { presets: join(dir, 'presets.json'), activeStrategy: join(dir, 'strategy.json'), activeProfile: join(dir, 'profile.json'), engineWanted: join(dir, 'engine.wanted') };
     expect(applyPresets(p, 'live')).toEqual([]);
     expect(existsSync(p.activeStrategy)).toBe(false);
-    expect(applyPresets(p, 'paper')).toEqual(['autopilot-1', 'invest-80', 'protection-1']);
-    expect(readActiveStrategy(p.activeStrategy, 'emaTrend').name).toBe('buyHold');
+    expect(applyPresets(p, 'paper')).toEqual(['autopilot-1', 'invest-80', 'protection-1', 'doc-strategies-1']);
+    expect(readActiveStrategy(p.activeStrategy).name).toBe('ema548');
     expect(readActiveProfile(p.activeProfile).id).toBe('balanced'); // invest-80: a wider watchlist
     expect(readFileSync(p.engineWanted, 'utf8')).toBe('on');
     writeActiveProfile(p.activeProfile, 'qglp', 'abhi');
@@ -379,7 +379,7 @@ describe('invest-80 settings', () => {
     writeFileSync(p.presets, JSON.stringify({ applied: ['autopilot-1'] }));
     writeFileSync(p.engineWanted, 'on');
     acquireLock(p.engineLock, { mode: 'paper', startedBy: 'website (abhi)' } as never);
-    expect(applyPresets(p, 'paper')).toEqual(['invest-80', 'protection-1']);
+    expect(applyPresets(p, 'paper')).toEqual(['invest-80', 'protection-1', 'doc-strategies-1']);
     expect(stopRequested(p.engineStopRequest)).toBe(true);
     expect(readFileSync(p.engineWanted, 'utf8')).toBe('on'); // still wanted: autopilot restarts it
     expect(applyPresets(p, 'paper')).toEqual([]);
@@ -404,7 +404,7 @@ describe('protection-1 settings', () => {
     const p = { presets: join(dir, 'presets.json'), activeStrategy: join(dir, 's.json'), activeProfile: join(dir, 'p.json'), engineWanted: join(dir, 'engine.wanted'), engineLock: join(dir, 'engine.lock'), engineStopRequest: join(dir, 'stop') };
     writeFileSync(p.presets, JSON.stringify({ applied: ['autopilot-1', 'invest-80'] }));
     acquireLock(p.engineLock, { mode: 'paper', startedBy: 'website (abhi)' } as never);
-    expect(applyPresets(p, 'paper')).toEqual(['protection-1']);
+    expect(applyPresets(p, 'paper')).toEqual(['protection-1', 'doc-strategies-1']);
     expect(stopRequested(p.engineStopRequest)).toBe(true);
     expect(applyPresets(p, 'paper')).toEqual([]);
   });

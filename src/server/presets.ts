@@ -3,6 +3,7 @@ import { dirname } from 'node:path';
 import { writeActiveProfile } from '../study/activeProfile';
 import { writeActiveStrategy } from '../trading/activeStrategy';
 import { requestStop, runningEngine } from '../trading/runLock';
+import { DEFAULT_STRATEGY } from '../trading/strategyIds';
 
 /**
  * One-time settings changes the owner asked for, applied once when the website starts (paper only).
@@ -20,7 +21,7 @@ export function applyPresets(p: { presets: string; activeStrategy: string; activ
   }
   const applied: string[] = [];
   if (!done.includes('autopilot-1')) {
-    writeActiveStrategy(p.activeStrategy, 'buyHold', 'autopilot', now);
+    writeActiveStrategy(p.activeStrategy, DEFAULT_STRATEGY, 'autopilot', now);
     writeActiveProfile(p.activeProfile, 'buffett', 'autopilot', now);
     mkdirSync(dirname(p.engineWanted), { recursive: true });
     writeFileSync(p.engineWanted, 'on');
@@ -39,6 +40,14 @@ export function applyPresets(p: { presets: string; activeStrategy: string; activ
   if (!done.includes('protection-1')) {
     if (!applied.includes('invest-80') && p.engineLock && p.engineStopRequest && runningEngine(p.engineLock)) requestStop(p.engineStopRequest, 'autopilot (loss protection)');
     applied.push('protection-1');
+  }
+  // "doc-strategies-1": only the strategies from the owner's document. The daily engine uses EMA 5/48 +
+  // RSI + MACD (holdings bought by the retired strategies are sold by its rules) and the intraday desk
+  // trades the other three; a running engine is restarted once to load them.
+  if (!done.includes('doc-strategies-1')) {
+    writeActiveStrategy(p.activeStrategy, DEFAULT_STRATEGY, 'your strategy document', now);
+    if (!applied.some((a) => a === 'invest-80' || a === 'protection-1') && p.engineLock && p.engineStopRequest && runningEngine(p.engineLock)) requestStop(p.engineStopRequest, 'autopilot (your strategies)');
+    applied.push('doc-strategies-1');
   }
   if (applied.length) {
     mkdirSync(dirname(p.presets), { recursive: true });

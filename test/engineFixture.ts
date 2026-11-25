@@ -6,6 +6,7 @@ import { saveWatchlist, type Watchlist } from '../src/study/watchlist';
 import { PaperBroker, type PaperOptions } from '../src/trading/brokers/paperBroker';
 import { Engine, type EnginePaths } from '../src/trading/engine';
 import type { Candle } from '../src/types';
+import { computeIndicators, entrySignal } from '../src/trading/strategy';
 import { FakeMarket, FaultyBroker, syntheticCandles, tradingCfg } from './helpers';
 
 // Thu 29 Oct 2026, 15:15 IST = 09:45 UTC (after evaluateAt 15:10)
@@ -16,7 +17,12 @@ export const later = (min: number) => new Date(at(EVAL).getTime() + min * 60_000
 
 /** Synthetic series cut at a bar where the entry signal fires, re-dated so that bar is "today". */
 export function entryCandles(lastDay = '2026-10-29'): Candle[] {
-  const c = syntheticCandles(800, { seed: 1 }).slice(0, 235);
+  // Cut at the first bar from 235 on where the default strategy's entry signal fires.
+  const all = syntheticCandles(800, { seed: 1 });
+  const ind = computeIndicators(all, tradingCfg.strategy);
+  let cut = 234;
+  while (cut < all.length - 1 && !entrySignal(all, ind, cut, tradingCfg.strategy).enter) cut++;
+  const c = all.slice(0, cut + 1);
   const last = at(`${lastDay}T03:45:00Z`).getTime();
   return c.map((x, i) => ({ ...x, time: new Date(last - (c.length - 1 - i) * 86_400_000) }));
 }

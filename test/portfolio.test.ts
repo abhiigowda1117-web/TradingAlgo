@@ -8,17 +8,39 @@ import { alignBenchmark, buyAndHold } from '../src/trading/benchmark';
 import { tradeCosts } from '../src/trading/costs';
 import { summarizeCurve, summarizeStrategy } from '../src/trading/performance';
 import { dayKey, runPortfolioBacktest, type PortfolioOptions } from '../src/trading/portfolioBacktest';
-import { computeIndicators, entrySignal } from '../src/trading/strategy';
+import { computeIndicators } from '../src/trading/strategy';
 import type { Candle } from '../src/types';
 import { syntheticCandles, tradingCfg } from './helpers';
 
-// The seed-1 synthetic series gives an entry signal at the close of bar 234.
+/**
+ * These tests check the backtester's mechanics (fills, stops, cash, limits), so they use one fixed,
+ * simple rule rather than the live strategy: buy when EMA 20 crosses above EMA 50 above EMA 200 with
+ * RSI 50-70 (stop 2 ATR below), sell when EMA 20 falls below EMA 50, trailing 3 ATR. The seed-1
+ * synthetic series gives exactly one such signal in the test window, at the close of bar 234.
+ */
+const rules: NonNullable<PortfolioOptions['rules']> = {
+  entry(c, ind, i) {
+    const [f, s, t, r, a] = [ind.fast[i]!, ind.slow[i]!, ind.trend[i]!, ind.rsi[i]!, ind.atr[i]!];
+    const pf = ind.fast[i - 1]!;
+    const ps = ind.slow[i - 1]!;
+    if ([f, s, t, r, a, pf, ps].some((x) => x === undefined || Number.isNaN(x))) return { enter: false, reason: 'not ready' };
+    const close = c[i]!.close;
+    if (pf <= ps && f > s && close > t && r >= 50 && r <= 70) return { enter: true, stop: close - 2 * a, reason: 'crossover' };
+    return { enter: false, reason: 'no crossover' };
+  },
+  exit(c, ind, i, t) {
+    if (ind.fast[i]! < ind.slow[i]!) return { exit: true, reason: 'EMA 20 below EMA 50' };
+    const highestClose = Math.max(t.highestClose, c[i]!.close);
+    const trail = Number.isNaN(ind.atr[i]!) ? t.stop : highestClose - 3 * ind.atr[i]!;
+    return { exit: false, stop: Math.max(t.stop, trail), highestClose };
+  },
+};
 const SIGNAL = 234;
 const base = syntheticCandles(800, { seed: 1 });
 const day = (i: number) => dayKey(base[i]!.time);
 const scale = (c: Candle[], k: number) => c.map((x) => ({ ...x, open: x.open * k, high: x.high * k, low: x.low * k, close: x.close * k }));
 const signalStop = (() => {
-  const e = entrySignal(base, computeIndicators(base, tradingCfg.strategy), SIGNAL, tradingCfg.strategy);
+  const e = rules.entry(base, computeIndicators(base, tradingCfg.strategy), SIGNAL);
   if (!e.enter) throw new Error('fixture: expected an entry signal at bar 234');
   return e.stop;
 })();
@@ -32,6 +54,7 @@ const opts = (o: Partial<PortfolioOptions> = {}): PortfolioOptions => ({
   initialCapital: 500_000,
   start: day(220),
   end: day(260),
+  rules,
   ...o,
 });
 

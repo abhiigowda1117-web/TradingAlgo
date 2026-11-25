@@ -121,7 +121,7 @@ describe('the same protection in the backtests (Strategy Lab)', () => {
     const { syntheticCandles } = await import('./helpers');
     const candles = { A: syntheticCandles(900, { seed: 3 }), B: syntheticCandles(900, { seed: 7 }) };
     const days = candles.A.map((x) => x.time.toISOString().slice(0, 10));
-    const base = { strategy: { ...tradingCfg.strategy, name: 'emaTrend' as const }, risk: tradingCfg.risk, costs: tradingCfg.backtest.costs, slippagePct: 0.0005, initialCapital: 500_000, start: days[300]!, end: days.at(-1)! };
+    const base = { strategy: tradingCfg.strategy, risk: tradingCfg.risk, costs: tradingCfg.backtest.costs, slippagePct: 0.0005, initialCapital: 500_000, start: days[300]!, end: days.at(-1)! };
     const free = runPortfolioBacktest(candles, base);
     expect(free.trades.length + free.open.length).toBeGreaterThan(0);
     const blocked = runPortfolioBacktest(candles, { ...base, marketOk: () => false });

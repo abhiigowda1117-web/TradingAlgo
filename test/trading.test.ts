@@ -31,26 +31,59 @@ describe('indicators', () => {
   });
 });
 
-describe('strategy', () => {
-  const candles = syntheticCandles(800, { seed: 1 });
-  const ind = computeIndicators(candles, tradingCfg.strategy);
+describe('strategy: EMA 5/48 + RSI + MACD (from the strategy document)', () => {
+  const cfg = tradingCfg.strategy;
+  /** A rising stock (1%/day, speeding up), then a small red dip, then the last bar as given. */
+  function setup(last: 'green' | 'red', dip = true): Candle[] {
+    const c: Candle[] = [];
+    let p = 100;
+    for (let i = 0; i < 70; i++) {
+      p *= 1.01 + i * 0.0001;
+      c.push({ time: new Date(Date.UTC(2026, 0, 1) + i * 86_400_000), open: p * 0.995, high: p * 1.01, low: p * 0.99, close: p, volume: 1e5 });
+    }
+    if (dip) {
+      const d = p * 0.98;
+      c.push({ time: new Date(Date.UTC(2026, 0, 1) + 70 * 86_400_000), open: p, high: p, low: d * 0.99, close: d, volume: 1e5 });
+      p = d;
+    }
+    const close = last === 'green' ? p * 1.025 : p * 0.995;
+    const open = last === 'green' ? p * 1.0 : p * 1.005;
+    c.push({ time: new Date(Date.UTC(2026, 0, 1) + 71 * 86_400_000), open, high: Math.max(open, close) * 1.002, low: Math.min(open, close) * 0.995, close, volume: 1e5 });
+    return c;
+  }
+  const at = (c: Candle[]) => entrySignal(c, computeIndicators(c, cfg), c.length - 1, cfg);
 
-  it('enters on a bullish crossover above the trend with RSI in band, stop 2 ATR below', () => {
-    const e = entrySignal(candles, ind, 234, tradingCfg.strategy);
-    expect(e.enter).toBe(true);
-    if (e.enter) expect(e.stop).toBeCloseTo(candles[234]!.close - 2 * ind.atr[234]!);
+  it('buys an uptrend after a small dip, once a green candle confirms; stop below the 5-day low', () => {
+    const c = setup('green');
+    const e = at(c);
+    expect(e).toMatchObject({ enter: true, reason: expect.stringMatching(/EMA 5 > EMA 48.*green candle/) });
+    const lowest5 = Math.min(...c.slice(-5).map((x) => x.low));
+    if (e.enter) expect(e.stop).toBeCloseTo(Math.min(lowest5 * 0.999, c.at(-1)!.close * 0.995));
   });
 
-  it('does not enter before indicators are warmed up or without a crossover', () => {
-    expect(entrySignal(candles, ind, 100, tradingCfg.strategy).enter).toBe(false);
-    expect(entrySignal(candles, ind, 235, tradingCfg.strategy).enter).toBe(false);
+  it('waits for the green candle and for the dip; never buys a downtrend', () => {
+    expect(at(setup('red'))).toMatchObject({ enter: false, reason: 'no green confirmation candle' });
+    expect(at(setup('green', false))).toMatchObject({ enter: false, reason: expect.stringMatching(/no small dip/) });
+    const down = setup('green').map((x, i, a) => ({ ...a[a.length - 1 - i]!, time: x.time }));
+    expect(at(down)).toMatchObject({ enter: false });
   });
 
-  it('trailing stop only ratchets up', () => {
-    const d = exitSignal(candles, ind, 240, { stop: 1e9, highestClose: 0 }, tradingCfg.strategy);
-    if (!d.exit) expect(d.stop).toBe(1e9);
-    const d2 = exitSignal(candles, ind, 240, { stop: 0, highestClose: 0 }, tradingCfg.strategy);
-    if (!d2.exit) expect(d2.stop).toBeCloseTo(Math.max(candles[240]!.close) - 3 * ind.atr[240]!);
+  it('sells at the 1:2 target, when the trend turns, or when strength fades', () => {
+    const c = setup('green');
+    const ind = computeIndicators(c, cfg);
+    const i = c.length - 1;
+    const close = c[i]!.close;
+    // Bought at 100 with a stop at 95: risk 5, target 110.
+    expect(exitSignal(c, ind, i, { stop: 0, highestClose: 0, entryPrice: close / 1.11, initialStop: close / 1.11 - (close / 1.11) * 0.05 }, cfg)).toMatchObject({ exit: true, reason: 'target 1:2 reached' });
+    expect(exitSignal(c, ind, i, { stop: 50, highestClose: 0, entryPrice: close, initialStop: close * 0.95 }, cfg)).toMatchObject({ exit: false, stop: 50 });
+    const down = setup('green').map((x, k, a) => ({ ...a[a.length - 1 - k]!, time: x.time }));
+    expect(exitSignal(down, computeIndicators(down, cfg), down.length - 1, { stop: 0, highestClose: 0 }, cfg)).toMatchObject({ exit: true });
+  });
+
+  it('an unknown or retired strategy name falls back to this strategy', () => {
+    const c = setup('green');
+    const old = { ...cfg, name: 'buyHold' as never };
+    expect(entrySignal(c, computeIndicators(c, old), c.length - 1, old).enter).toBe(true);
   });
 });
 
